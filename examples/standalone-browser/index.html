@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Varpulis Agent Runtime — Browser Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; line-height: 1.6; }
+    pre { background: #1e1e2e; color: #cdd6f4; padding: 1.5rem; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+    .detection { margin: 0.25rem 0; }
+    .warning { color: #f9e2af; }
+    .error { color: #f38ba8; }
+    .critical { color: #f38ba8; font-weight: bold; }
+    h2 { margin-top: 2rem; color: #313244; }
+  </style>
+</head>
+<body>
+  <h1>Varpulis Agent Runtime — Browser Demo</h1>
+  <p>This page loads the WASM module in a real browser and runs all 6 pattern detectors.</p>
+  <pre id="output">Loading WASM...</pre>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

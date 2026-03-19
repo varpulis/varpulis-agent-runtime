@@ -1,0 +1,12 @@
+{
+  "name": "varpulis-standalone-node-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "setup": "npm install ../../packages/npm/varpulis-agent-runtime-0.1.0.tgz"
+  },
+  "dependencies": {
+    "@varpulis/agent-runtime": "file:../../packages/npm/varpulis-agent-runtime-0.1.0.tgz"
+  }
+}

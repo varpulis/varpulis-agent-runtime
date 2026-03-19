@@ -1,0 +1,15 @@
+{
+  "name": "varpulis-standalone-browser-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "npm install ../../packages/npm/varpulis-agent-runtime-0.1.0.tgz vite vite-plugin-wasm",
+    "dev": "npx vite",
+    "build": "npx vite build"
+  },
+  "dependencies": {
+    "@varpulis/agent-runtime": "file:../../packages/npm/varpulis-agent-runtime-0.1.0.tgz",
+    "vite": "^8.0.1",
+    "vite-plugin-wasm": "^3.6.0"
+  }
+}
