@@ -93,10 +93,9 @@ runtime = VarpulisAgentRuntime(
     cooldown_ms=5000,
 )
 
+@runtime.on("retry_storm")
 def handle_retry_storm(detection):
     print(f"Retry storm: {detection['message']}")
-
-runtime.on("retry_storm", handle_retry_storm)
 
 # Push events
 detections = runtime.observe(

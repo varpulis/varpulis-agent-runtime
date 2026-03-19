@@ -61,14 +61,31 @@ class VarpulisAgentRuntime:
 
         return unsubscribe
 
-    def on(self, pattern_name: str, callback: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
-        """Register a callback for a specific pattern."""
+    def on(self, pattern_name: str, callback: Callable[[dict[str, Any]], None] | None = None) -> Any:
+        """Register a callback for a specific pattern.
 
-        def filtered(d: dict[str, Any]) -> None:
-            if d.get("pattern_name") == pattern_name:
-                callback(d)
+        Can be used as a decorator or called directly:
 
-        return self.on_detection(filtered)
+            @runtime.on("retry_storm")
+            def handle(detection):
+                ...
+
+            # or
+
+            runtime.on("retry_storm", handle)
+        """
+        def _register(cb: Callable[[dict[str, Any]], None]) -> Callable[[dict[str, Any]], None]:
+            def filtered(d: dict[str, Any]) -> None:
+                if d.get("pattern_name") == pattern_name:
+                    cb(d)
+            self.on_detection(filtered)
+            return cb
+
+        if callback is not None:
+            _register(callback)
+            return None
+
+        return _register
 
     def reset(self) -> None:
         """Reset all detector state and cooldowns."""

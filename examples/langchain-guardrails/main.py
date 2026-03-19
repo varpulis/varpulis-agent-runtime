@@ -22,14 +22,26 @@ def main():
         cooldown_ms=0,
     )
 
-    # Register handlers
-    runtime.on("retry_storm", lambda d: print(f"  RETRY STORM: {d['message']}"))
-    runtime.on("error_spiral", lambda d: print(f"  ERROR SPIRAL: {d['message']}"))
-    runtime.on("stuck_agent", lambda d: print(f"  STUCK AGENT: {d['message']}"))
-    runtime.on("budget_runaway", lambda d: print(
-        f"  BUDGET {'EXCEEDED' if d['severity'] == 'error' else 'WARNING'}: {d['message']}"
-    ))
-    runtime.on("circular_reasoning", lambda d: print(f"  CIRCULAR: {d['message']}"))
+    # Register handlers (decorator style)
+    @runtime.on("retry_storm")
+    def on_retry(d):
+        print(f"  RETRY STORM: {d['message']}")
+
+    @runtime.on("error_spiral")
+    def on_error(d):
+        print(f"  ERROR SPIRAL: {d['message']}")
+
+    @runtime.on("stuck_agent")
+    def on_stuck(d):
+        print(f"  STUCK AGENT: {d['message']}")
+
+    @runtime.on("budget_runaway")
+    def on_budget(d):
+        print(f"  BUDGET {'EXCEEDED' if d['severity'] == 'error' else 'WARNING'}: {d['message']}")
+
+    @runtime.on("circular_reasoning")
+    def on_circular(d):
+        print(f"  CIRCULAR: {d['message']}")
 
     t = int(time.time() * 1000)
 
