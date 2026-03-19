@@ -18,6 +18,7 @@ pub struct WasmAgentRuntime {
 impl WasmAgentRuntime {
     /// Create an empty runtime with no detectors.
     #[wasm_bindgen(constructor)]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             inner: AgentRuntime::new(),
@@ -38,12 +39,11 @@ impl WasmAgentRuntime {
     pub fn add_retry_storm(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: RetryStormConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
-        self.inner.add_detector(Box::new(RetryStormDetector::new(
-            RetryStormConfig {
+        self.inner
+            .add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
                 min_repetitions: config.min_repetitions.unwrap_or(3),
                 window_seconds: config.window_seconds.unwrap_or(10),
-            },
-        )));
+            })));
         Ok(())
     }
 

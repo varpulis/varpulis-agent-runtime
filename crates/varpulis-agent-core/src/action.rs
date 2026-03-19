@@ -1,8 +1,10 @@
 use crate::pattern::Detection;
 
+pub type DetectionCallback = Box<dyn Fn(&Detection) + Send>;
+
 /// Dispatches detections to registered callbacks.
 pub struct ActionDispatcher {
-    callbacks: Vec<Box<dyn Fn(&Detection) + Send>>,
+    callbacks: Vec<DetectionCallback>,
 }
 
 impl ActionDispatcher {
@@ -13,7 +15,7 @@ impl ActionDispatcher {
     }
 
     /// Register a callback invoked on every (non-cooled-down) detection.
-    pub fn on_detection(&mut self, cb: Box<dyn Fn(&Detection) + Send>) {
+    pub fn on_detection(&mut self, cb: DetectionCallback) {
         self.callbacks.push(cb);
     }
 

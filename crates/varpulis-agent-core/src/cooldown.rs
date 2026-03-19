@@ -24,7 +24,8 @@ impl CooldownManager {
                 return false;
             }
         }
-        self.last_fired.insert(pattern_name.to_string(), timestamp_ms);
+        self.last_fired
+            .insert(pattern_name.to_string(), timestamp_ms);
         true
     }
 

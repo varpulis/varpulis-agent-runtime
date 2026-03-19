@@ -1,4 +1,4 @@
-use crate::action::ActionDispatcher;
+use crate::action::{ActionDispatcher, DetectionCallback};
 use crate::cooldown::CooldownManager;
 use crate::event::AgentEvent;
 use crate::pattern::detector::{Detection, PatternDetector};
@@ -31,7 +31,9 @@ impl AgentRuntime {
     /// (retry_storm + stuck_agent with default configs).
     pub fn with_default_patterns() -> Self {
         let mut runtime = Self::new();
-        runtime.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig::default())));
+        runtime.add_detector(Box::new(RetryStormDetector::new(
+            RetryStormConfig::default(),
+        )));
         runtime.add_detector(Box::new(StuckAgentDetector::new(
             StuckAgentConfig::default(),
         )));
@@ -44,7 +46,7 @@ impl AgentRuntime {
     }
 
     /// Register a callback invoked on every detection (after cooldown filtering).
-    pub fn on_detection(&mut self, cb: Box<dyn Fn(&Detection) + Send>) {
+    pub fn on_detection(&mut self, cb: DetectionCallback) {
         self.dispatcher.on_detection(cb);
     }
 

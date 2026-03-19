@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Varpulis Agent Runtime — E2E Test Harness</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; }
+      pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+      .status { padding: 0.5rem 1rem; border-radius: 4px; display: inline-block; }
+      .status.ready { background: #d4edda; color: #155724; }
+      .status.error { background: #f8d7da; color: #721c24; }
+    </style>
+  </head>
+  <body>
+    <h1>Varpulis E2E Test Harness</h1>
+    <div id="status" class="status">Loading WASM...</div>
+    <pre id="log"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
