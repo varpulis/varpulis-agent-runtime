@@ -1,0 +1,19 @@
+[package]
+name = "varpulis-agent-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WASM bindings for Varpulis Agent Runtime"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+varpulis-agent-core = { path = "../varpulis-agent-core" }
+wasm-bindgen = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

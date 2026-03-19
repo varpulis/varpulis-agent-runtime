@@ -1,0 +1,19 @@
+# Rust
+/target/
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+*.tgz
+
+# WASM build artifacts
+packages/npm/wasm/
+pkg/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
