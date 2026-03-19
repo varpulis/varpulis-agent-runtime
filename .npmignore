@@ -1,0 +1,2 @@
+# Only used to prevent .gitignore from excluding WASM build artifacts
+# from the npm package. The "files" field in package.json controls inclusion.

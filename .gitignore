@@ -6,8 +6,7 @@ node_modules/
 dist/
 *.tgz
 
-# WASM build artifacts
-packages/npm/wasm/
+# WASM build artifacts (wasm/ is excluded via packages/npm/.gitignore)
 pkg/
 
 # IDE

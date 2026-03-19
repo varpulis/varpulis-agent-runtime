@@ -1,0 +1,3 @@
+# Build outputs (rebuilt via npm run build)
+dist/
+test-results/

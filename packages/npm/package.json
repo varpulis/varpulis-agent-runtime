@@ -1,18 +1,43 @@
 {
   "name": "@varpulis/agent-runtime",
   "version": "0.1.0",
-  "description": "Real-time behavioral guardrails for AI agents",
+  "description": "Real-time behavioral guardrails for AI agents. Detect retry storms, circular reasoning, budget overruns, and failure spirals — as they happen.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./langchain": {
+      "import": "./dist/integrations/langchain.js",
+      "types": "./dist/integrations/langchain.d.ts"
+    },
+    "./openai": {
+      "import": "./dist/integrations/openai.js",
+      "types": "./dist/integrations/openai.d.ts"
+    },
+    "./wasm": {
+      "import": "./wasm/varpulis_agent_wasm.js",
+      "types": "./wasm/varpulis_agent_wasm.d.ts"
+    }
+  },
   "files": [
     "dist/",
-    "wasm/"
+    "wasm/",
+    "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/varpulis/varpulis-agent-runtime"
+  },
+  "homepage": "https://github.com/varpulis/varpulis-agent-runtime",
   "scripts": {
-    "build:wasm": "wasm-pack build ../../crates/varpulis-agent-wasm --target bundler --out-dir ../../packages/npm/wasm",
+    "build:wasm": "wasm-pack build ../../crates/varpulis-agent-wasm --target bundler --out-dir ../../packages/npm/wasm && rm -f wasm/.gitignore",
     "build:ts": "tsc",
     "build": "npm run build:wasm && npm run build:ts",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
@@ -25,9 +50,20 @@
     "monitoring",
     "langchain",
     "mcp",
-    "behavioral-patterns"
+    "openai",
+    "behavioral-patterns",
+    "wasm",
+    "rust"
   ],
   "license": "Apache-2.0",
+  "peerDependencies": {
+    "@langchain/core": ">=0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "typescript": "^5.7.0",
