@@ -11,9 +11,9 @@ pip install varpulis-agent-runtime
 ```
 
 Works with **LangChain**, **MCP**, **OpenAI Agents SDK**, or any custom agent.
-Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, 380KB bundle.
+Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, 316KB bundle.
 
-Powered by the **Varpulis CEP engine** — a production-grade Complex Event Processing engine with SASE+ pattern matching, Kleene closure, and Zero-suppressed Decision Diagrams (ZDD) for efficient combinatorial matching.
+Powered by the **Varpulis CEP engine** — NFA-based pattern matching with Kleene closure and Zero-suppressed Decision Diagrams (ZDD) for efficient combinatorial matching.
 
 ---
 
@@ -302,26 +302,26 @@ Every agent action maps to one of these event types:
   <img src="docs/architecture.svg" alt="Varpulis Agent Runtime Architecture" width="720">
 </p>
 
-The runtime is powered by the **Varpulis CEP engine** — a SASE+ (Stream-based And Shared Event processing) pattern matching engine compiled to WASM (JavaScript) or native extension via PyO3 (Python).
+The runtime is powered by the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, compiled to WASM (JavaScript) or native extension via PyO3 (Python).
 
-Each behavioral pattern is expressed as a SASE+ query with **Kleene closure** (one-or-more repetition), **cross-event predicates** (e.g., "same tool name as the first call"), and **temporal windows**. The engine uses an NFA-based matcher with **Zero-suppressed Decision Diagrams (ZDD)** to efficiently handle combinatorial explosion in unbounded repetition matching — 20 events in a Kleene closure produce ~1M combinations represented in ~100 ZDD nodes, not 1M explicit states.
+Each behavioral pattern is expressed as a sequence of event matchers with **Kleene closure** (`+` = one or more repetitions), **cross-event predicates** (e.g., "same tool name as the first call"), and **temporal windows**. The engine uses **Zero-suppressed Decision Diagrams (ZDD)** to efficiently handle combinatorial explosion — 20 events in a Kleene match produce ~1M combinations represented in ~100 ZDD nodes, not 1M explicit states.
 
 Pattern detection runs in-process with sub-millisecond latency per event. 380KB WASM bundle.
 
-### SASE Patterns Under the Hood
+### Patterns Under the Hood
 
-Each pre-packaged pattern maps to a SASE+ expression:
+Each pre-packaged pattern maps to a Kleene closure expression:
 
-| Pattern | SASE+ Expression |
-|---|---|
-| **Retry Storm** | `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s` |
-| **Error Spiral** | `ToolResult{success = false}+ WITHIN 30s` |
-| **Budget Runaway** | `LlmCall+ WITHIN 60s` with post-match aggregation on `cost_usd` and tokens |
-| **Stuck Agent** | `StepEnd{produced_output = false}+ WITHIN 120s` with `NOT FinalAnswer` negation |
-| **Circular Reasoning** | `SEQ(ToolCall AS a, ToolCall{name != a.name} AS b, ToolCall{name = a.name}, ToolCall{name = b.name})` |
-| **Token Velocity** | Stateful step-tracking with moving average baseline |
+```
+retry_storm:         same_tool_call{3+} within 10s
+error_spiral:        tool_error{3+} within 30s
+budget_runaway:      llm_call{+} within 60s  → aggregate cost & tokens
+stuck_agent:         step{no_output}{15+}     → reset on final_answer
+circular_reasoning:  A → B → A → B           → cross-event name matching
+token_velocity:      step-level token tracking with moving average baseline
+```
 
-The `+` operator is **Kleene closure** — it matches one or more repetitions of the inner pattern. The ZDD data structure compactly represents all valid event combinations without exponential blowup.
+The `+` operator is **Kleene closure** — it matches one or more repetitions and the ZDD compactly represents all valid event combinations without exponential blowup.
 
 ---
 

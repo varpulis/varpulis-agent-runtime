@@ -17,14 +17,17 @@ The problem is these failures are invisible to existing tools. Each individual s
 
 Without something like this, the typical fix is a hardcoded `max_iterations=10` and a prayer.
 
-**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's built on a SASE+ Complex Event Processing engine (NFA-based pattern matching with Kleene closure), compiled to WASM for JS/TS and native extension via PyO3 for Python. Runs in-process with <1ms latency per event. 380KB WASM bundle.
+**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's built on an NFA-based pattern matching engine with Kleene closure support, compiled to WASM for JS/TS and native extension via PyO3 for Python. <1ms latency per event. 316KB WASM bundle.
 
-Each pattern is a SASE+ query with Kleene closure (`+` = one or more repetitions):
+Each pattern is a Kleene closure expression (`+` = one or more repetitions):
 
-- **Retry storm:** `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s`
-- **Error spiral:** `ToolResult{success = false}+ WITHIN 30s`
-- **Stuck agent:** `StepEnd{produced_output = false}+` with `NOT FinalAnswer` negation
-- **Circular reasoning:** `SEQ(A, B{name != A.name}, A2{name = A.name}, B2{name = B.name})`
+```
+retry_storm:         same_tool_call{3+} within 10s
+error_spiral:        tool_error{3+} within 30s
+stuck_agent:         step{no_output}{15+}, reset on final_answer
+circular_reasoning:  A → B → A → B (cross-event name matching)
+budget_runaway:      llm_call{+} within 60s → aggregate cost & tokens
+```
 
 The Kleene closure is backed by Zero-suppressed Decision Diagrams (ZDD) to avoid exponential blowup — 20 events in a Kleene match produce ~1M combinations represented in ~100 ZDD nodes.
 

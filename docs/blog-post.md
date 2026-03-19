@@ -94,28 +94,28 @@ agent.invoke({"input": "..."}, config={"callbacks": [handler]})
 
 The handler translates LangChain events (tool calls, LLM responses, chain steps) into Varpulis events automatically. When a kill-worthy detection fires, it throws `VarpulisKillError` to stop the agent.
 
-## How It Works: SASE+ Pattern Matching with Kleene Closure
+## How It Works: NFA Pattern Matching with Kleene Closure
 
-The runtime is built on the **Varpulis CEP engine** — a SASE+ (Stream-based And Shared Event processing) Complex Event Processing engine written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure.
+The runtime is built on the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure.
 
-Each behavioral pattern is a SASE+ query with **Kleene closure** — the `+` operator that matches one or more repetitions:
+Each behavioral pattern is a Kleene closure expression — the `+` operator matches one or more repetitions:
 
-| Pattern | SASE+ Expression |
-|---|---|
-| Retry Storm | `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s` |
-| Error Spiral | `ToolResult{success = false}+ WITHIN 30s` |
-| Budget Runaway | `LlmCall+ WITHIN 60s` with post-match aggregation on cost/tokens |
-| Stuck Agent | `StepEnd{produced_output = false}+` with `NOT FinalAnswer` negation |
-| Circular Reasoning | `SEQ(A, B{name != A.name}, A2{name = A.name}, B2{name = B.name})` |
+```
+retry_storm:         same_tool_call{3+} within 10s
+error_spiral:        tool_error{3+} within 30s
+stuck_agent:         step{no_output}{15+}, reset on final_answer
+circular_reasoning:  A → B → A → B (cross-event name matching)
+budget_runaway:      llm_call{+} within 60s → aggregate cost & tokens
+```
 
 The Kleene closure is backed by **Zero-suppressed Decision Diagrams (ZDD)** to avoid exponential blowup. When 20 events match a Kleene pattern, there are naively 2^20 (~1M) possible combinations. The ZDD represents all of them in ~100 nodes — not 1M explicit states.
 
-The engine processes events through an NFA (compiled from the SASE pattern), maintains active partial-match runs, and emits matches when a pattern completes. Cross-event predicates like `name = first.name` let patterns reference previously captured events.
+The engine compiles each pattern into an NFA, maintains active partial-match runs as events arrive, and emits matches when a pattern completes. Cross-event predicates let patterns reference previously captured events (e.g., "same tool name as the first call in the sequence").
 
-The WASM bundle is 380KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
+The WASM bundle is 316KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
 
 ## What's Next
 
-We're building this in the open at [github.com/varpulis/varpulis-agent-runtime](https://github.com/varpulis/varpulis-agent-runtime). The library is Apache 2.0 licensed and has 103 tests including Playwright e2e tests that run the WASM + SASE engine in a real Chromium browser.
+We're building this in the open at [github.com/varpulis/varpulis-agent-runtime](https://github.com/varpulis/varpulis-agent-runtime). The library is Apache 2.0 licensed and has 103 tests including Playwright e2e tests that run the full engine in a real Chromium browser.
 
 We'd love to hear which failure modes matter most to you and what patterns are missing. Open an issue or drop by the repo.
