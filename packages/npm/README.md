@@ -315,7 +315,7 @@ Each pre-packaged pattern maps to a Kleene closure expression:
 ```
 retry_storm:         same_tool_call{3+} within 10s
 error_spiral:        tool_error{3+} within 30s
-budget_runaway:      llm_call{+} within 60s  → aggregate cost & tokens
+budget_runaway:      llm_call{+} within 60s where sum(cost) > threshold
 stuck_agent:         step{no_output}{15+}     → reset on final_answer
 circular_reasoning:  A → B → A → B           → cross-event name matching
 token_velocity:      step-level token tracking with moving average baseline

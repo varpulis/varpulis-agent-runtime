@@ -26,7 +26,7 @@ retry_storm:         same_tool_call{3+} within 10s
 error_spiral:        tool_error{3+} within 30s
 stuck_agent:         step{no_output}{15+}, reset on final_answer
 circular_reasoning:  A → B → A → B (cross-event name matching)
-budget_runaway:      llm_call{+} within 60s → aggregate cost & tokens
+budget_runaway:      llm_call{+} within 60s where sum(cost) > threshold
 ```
 
 The Kleene closure is backed by Zero-suppressed Decision Diagrams (ZDD) to avoid exponential blowup — 20 events in a Kleene match produce ~1M combinations represented in ~100 ZDD nodes.

@@ -31,7 +31,70 @@ What's missing is real-time detection of **behavioral patterns**: sequences of a
 
 We built [Varpulis Agent Runtime](https://github.com/varpulis/varpulis-agent-runtime), an open-source library that detects these patterns in real-time. Think of it as regex for event streams, applied to AI agent behavior.
 
-You push events from your agent's execution loop. The runtime matches patterns across sliding time windows and fires detections when thresholds are exceeded.
+The runtime is built on the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure. 316KB WASM bundle.
+
+Each behavioral pattern is a Kleene closure expression — the `+` operator matches one or more repetitions:
+
+```
+retry_storm:         same_tool_call{3+} within 10s
+error_spiral:        tool_error{3+} within 30s
+stuck_agent:         step{no_output}{15+}, reset on final_answer
+circular_reasoning:  A → B → A → B (cross-event name matching)
+budget_runaway:      llm_call{+} within 60s where sum(cost) > threshold
+```
+
+The Kleene closure is backed by **Zero-suppressed Decision Diagrams (ZDD)** to avoid exponential blowup. When 20 events match a Kleene pattern, there are naively 2^20 (~1M) possible combinations. The ZDD represents all of them in ~100 nodes — not 1M explicit states.
+
+## It Caught Itself: Self-Correcting Agents
+
+We didn't just build a monitoring library — we built a **feedback loop**.
+
+We wired Varpulis into [Claude Code](https://claude.com/claude-code) (Anthropic's CLI agent) using its native HTTP hook system. The monitor runs as a tiny Flask daemon, receives every tool call, feeds them through the CEP engine, and **injects detections back into the agent's context**.
+
+The setup is three lines of config:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }]
+  }
+}
+```
+
+When a pattern fires, the monitor returns `additionalContext` in the hook response — and the agent receives it as guidance on its next turn. For kill-level detections, it returns `permissionDecision: "deny"` which blocks the tool call entirely.
+
+**And it caught a real pattern during its own development.** The CEP engine detected:
+
+> `[WARNING] circular_reasoning: Circular pattern: Edit → Bash → Edit → Bash`
+> `Suggestion: You are alternating between the same tools in a loop. Break the cycle by trying a completely different approach.`
+
+The agent was in an edit-restart-edit-restart cycle — a legitimate development workflow, but the engine correctly identified the repeating sequence. In a production scenario with a misbehaving agent, this same detection would break the loop and redirect the agent before it wastes time and money.
+
+This is the real promise: **agents that monitor their own behavior and self-correct in real-time.** The [Claude Code monitor example](https://github.com/varpulis/varpulis-agent-runtime/tree/master/examples/claude-code-monitor) includes the full setup with a live web dashboard.
+
+## Integration in 10 Lines
+
+### Python
+
+```bash
+pip install varpulis-agent-runtime
+```
+
+```python
+from varpulis_agent_runtime import VarpulisAgentRuntime, Patterns
+
+runtime = VarpulisAgentRuntime(patterns=[
+    Patterns.retry_storm(min_repetitions=3, kill_threshold=5),
+    Patterns.budget_runaway(max_cost_usd=0.50),
+    Patterns.stuck_agent(max_steps_without_output=10),
+])
+
+@runtime.on("budget_runaway")
+def handle(detection):
+    if detection["action"] == "kill":
+        raise SystemExit("Budget exceeded")
+```
 
 ### JavaScript/TypeScript
 
@@ -60,30 +123,7 @@ runtime.on('budget_runaway', (d) => {
 });
 ```
 
-### Python
-
-```bash
-pip install varpulis-agent-runtime
-```
-
-```python
-from varpulis_agent_runtime import VarpulisAgentRuntime, Patterns
-
-runtime = VarpulisAgentRuntime(patterns=[
-    Patterns.retry_storm(min_repetitions=3, kill_threshold=5),
-    Patterns.budget_runaway(max_cost_usd=0.50),
-    Patterns.stuck_agent(max_steps_without_output=10),
-])
-
-@runtime.on("budget_runaway")
-def handle(detection):
-    if detection["action"] == "kill":
-        raise SystemExit("Budget exceeded")
-```
-
-### LangChain Integration
-
-For LangChain, it's a one-liner callback:
+### LangChain
 
 ```python
 from varpulis_agent_runtime.integrations.langchain import VarpulisCallbackHandler
@@ -92,57 +132,7 @@ handler = VarpulisCallbackHandler(runtime)
 agent.invoke({"input": "..."}, config={"callbacks": [handler]})
 ```
 
-The handler translates LangChain events (tool calls, LLM responses, chain steps) into Varpulis events automatically. When a kill-worthy detection fires, it throws `VarpulisKillError` to stop the agent.
-
-## How It Works: NFA Pattern Matching with Kleene Closure
-
-The runtime is built on the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure.
-
-Each behavioral pattern is a Kleene closure expression — the `+` operator matches one or more repetitions:
-
-```
-retry_storm:         same_tool_call{3+} within 10s
-error_spiral:        tool_error{3+} within 30s
-stuck_agent:         step{no_output}{15+}, reset on final_answer
-circular_reasoning:  A → B → A → B (cross-event name matching)
-budget_runaway:      llm_call{+} within 60s → aggregate cost & tokens
-```
-
-The Kleene closure is backed by **Zero-suppressed Decision Diagrams (ZDD)** to avoid exponential blowup. When 20 events match a Kleene pattern, there are naively 2^20 (~1M) possible combinations. The ZDD represents all of them in ~100 nodes — not 1M explicit states.
-
-The engine compiles each pattern into an NFA, maintains active partial-match runs as events arrive, and emits matches when a pattern completes. Cross-event predicates let patterns reference previously captured events (e.g., "same tool name as the first call in the sequence").
-
-The WASM bundle is 316KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
-
-## Self-Correcting Agents: Closing the Loop
-
-Here's where it gets interesting. We didn't just build a monitoring library — we built a **feedback loop**.
-
-We tested Varpulis on itself. We wired it into [Claude Code](https://claude.com/claude-code) (Anthropic's CLI agent) using its native HTTP hook system. The monitor runs as a tiny Flask daemon, receives every tool call via HTTP hooks, feeds them through the CEP engine, and **injects detections back into the agent's context**.
-
-The setup is three lines of config:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }]
-  }
-}
-```
-
-When a pattern fires, the monitor returns `additionalContext` in the hook response — and the agent receives it as guidance on its next turn. For kill-level detections, it returns `permissionDecision: "deny"` which blocks the tool call entirely.
-
-**And it caught a real pattern.** During development, the CEP engine detected:
-
-> `[WARNING] circular_reasoning: Circular pattern: Edit → Bash → Edit → Bash (SASE sequence match)`
-> `Suggestion: You are alternating between the same tools in a loop. Break the cycle by trying a completely different approach.`
-
-The agent was in an edit-restart-edit-restart cycle — a legitimate development workflow, but the engine correctly identified the repeating sequence. In a production scenario with a misbehaving agent, this same detection would break the loop and redirect the agent before it wastes time and money.
-
-This is the real promise: **agents that monitor their own behavior and self-correct in real-time**, powered by the same CEP pattern matching used in financial trading systems and industrial IoT — applied to AI agent reliability.
-
-The [Claude Code monitor example](https://github.com/varpulis/varpulis-agent-runtime/tree/master/examples/claude-code-monitor) includes the full setup with a live web dashboard.
+The handler translates LangChain events into Varpulis events automatically. When a kill-worthy detection fires, it throws `VarpulisKillError` to stop the agent.
 
 ## What's Next
 
