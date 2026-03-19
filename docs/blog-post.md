@@ -114,6 +114,36 @@ The engine compiles each pattern into an NFA, maintains active partial-match run
 
 The WASM bundle is 316KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
 
+## Self-Correcting Agents: Closing the Loop
+
+Here's where it gets interesting. We didn't just build a monitoring library — we built a **feedback loop**.
+
+We tested Varpulis on itself. We wired it into [Claude Code](https://claude.com/claude-code) (Anthropic's CLI agent) using its native HTTP hook system. The monitor runs as a tiny Flask daemon, receives every tool call via HTTP hooks, feeds them through the CEP engine, and **injects detections back into the agent's context**.
+
+The setup is three lines of config:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }]
+  }
+}
+```
+
+When a pattern fires, the monitor returns `additionalContext` in the hook response — and the agent receives it as guidance on its next turn. For kill-level detections, it returns `permissionDecision: "deny"` which blocks the tool call entirely.
+
+**And it caught a real pattern.** During development, the CEP engine detected:
+
+> `[WARNING] circular_reasoning: Circular pattern: Edit → Bash → Edit → Bash (SASE sequence match)`
+> `Suggestion: You are alternating between the same tools in a loop. Break the cycle by trying a completely different approach.`
+
+The agent was in an edit-restart-edit-restart cycle — a legitimate development workflow, but the engine correctly identified the repeating sequence. In a production scenario with a misbehaving agent, this same detection would break the loop and redirect the agent before it wastes time and money.
+
+This is the real promise: **agents that monitor their own behavior and self-correct in real-time**, powered by the same CEP pattern matching used in financial trading systems and industrial IoT — applied to AI agent reliability.
+
+The [Claude Code monitor example](https://github.com/varpulis/varpulis-agent-runtime/tree/master/examples/claude-code-monitor) includes the full setup with a live web dashboard.
+
 ## What's Next
 
 We're building this in the open at [github.com/varpulis/varpulis-agent-runtime](https://github.com/varpulis/varpulis-agent-runtime). The library is Apache 2.0 licensed and has 103 tests including Playwright e2e tests that run the full engine in a real Chromium browser.
