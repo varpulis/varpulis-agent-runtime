@@ -14,5 +14,16 @@ pkg/
 .vscode/
 .idea/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.so
+*.egg-info/
+.venv/
+
+# Playwright
+test-results/
+
 # OS
 .DS_Store
