@@ -16,20 +16,27 @@ from varpulis_agent_runtime import VarpulisAgentRuntime, Patterns
 
 app = Flask(__name__)
 
-# Initialize runtime with all patterns, tuned for Claude Code
-runtime = VarpulisAgentRuntime(
-    patterns=[
-        Patterns.retry_storm(min_repetitions=4, window_seconds=30),
-        Patterns.error_spiral(min_error_count=3, window_seconds=60),
-        Patterns.stuck_agent(max_steps_without_output=20, max_time_without_output_seconds=300),
-        Patterns.budget_runaway(max_cost_usd=5.00, max_tokens=500_000, window_seconds=300),
-        Patterns.circular_reasoning(),
-    ],
-    cooldown_ms=30_000,
-)
+PATTERN_CONFIG = [
+    Patterns.retry_storm(min_repetitions=4, window_seconds=30),
+    Patterns.error_spiral(min_error_count=3, window_seconds=60),
+    Patterns.stuck_agent(max_steps_without_output=20, max_time_without_output_seconds=300),
+    Patterns.budget_runaway(max_cost_usd=5.00, max_tokens=500_000, window_seconds=300),
+    Patterns.circular_reasoning(),
+]
 
-detections_log = []
-events_log = []
+# Per-session runtimes and logs
+sessions = {}  # session_id -> { runtime, events, detections }
+
+
+def get_session(session_id):
+    if session_id not in sessions:
+        sessions[session_id] = {
+            "runtime": VarpulisAgentRuntime(patterns=PATTERN_CONFIG, cooldown_ms=30_000),
+            "events": [],
+            "detections": [],
+            "started": time.strftime("%H:%M:%S"),
+        }
+    return sessions[session_id]
 
 
 def _hash(params):
@@ -48,14 +55,18 @@ def receive_event():
 
     ts = int(time.time() * 1000)
     now = time.strftime("%H:%M:%S")
+    sid = session_id[:8] if session_id else "unknown"
+
+    sess = get_session(session_id)
+    runtime = sess["runtime"]
 
     # Determine if this is pre or post based on presence of tool_response
     is_post = "tool_response" in data and data["tool_response"] is not None
 
     if not is_post:
         # PreToolUse → ToolCall
-        event_entry = {"time": now, "type": "ToolCall", "tool": tool_name, "input_preview": str(tool_input)[:100]}
-        events_log.append(event_entry)
+        event_entry = {"time": now, "type": "ToolCall", "tool": tool_name, "session": sid, "input_preview": str(tool_input)[:100]}
+        sess["events"].append(event_entry)
         dets = runtime.observe(
             timestamp=ts,
             event_type={
@@ -68,8 +79,8 @@ def receive_event():
     else:
         # PostToolUse → ToolResult
         is_error = not tool_response.get("success", True) if isinstance(tool_response, dict) else False
-        event_entry = {"time": now, "type": "ToolResult", "tool": tool_name, "success": not is_error}
-        events_log.append(event_entry)
+        event_entry = {"time": now, "type": "ToolResult", "tool": tool_name, "session": sid, "success": not is_error}
+        sess["events"].append(event_entry)
         dets = runtime.observe(
             timestamp=ts,
             event_type={
@@ -81,9 +92,9 @@ def receive_event():
         )
 
     for d in dets:
-        entry = {"time": now, **d}
-        detections_log.append(entry)
-        print(f"\033[91m  VARPULIS [{d['severity'].upper()}] {d['pattern_name']}: {d['message']}\033[0m")
+        entry = {"time": now, "session": sid, **d}
+        sess["detections"].append(entry)
+        print(f"\033[91m  VARPULIS [{sid}] [{d['severity'].upper()}] {d['pattern_name']}: {d['message']}\033[0m")
 
     if not dets:
         return jsonify({"detections": 0})
@@ -183,10 +194,20 @@ DASHBOARD_HTML = """
 
   <div class="grid">
     <div class="card full">
+      <h2>Sessions</h2>
+      <table>
+        <thead><tr><th>Session ID</th><th>Started</th><th>Events</th><th>Detections</th></tr></thead>
+        <tbody id="sessions"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card full">
       <h2>Detections</h2>
       <div class="scroll">
         <table>
-          <thead><tr><th>Time</th><th>Pattern</th><th>Severity</th><th>Action</th><th>Message</th></tr></thead>
+          <thead><tr><th>Time</th><th>Session</th><th>Pattern</th><th>Severity</th><th>Action</th><th>Message</th></tr></thead>
           <tbody id="detections"></tbody>
         </table>
       </div>
@@ -198,7 +219,7 @@ DASHBOARD_HTML = """
       <h2>Recent Events</h2>
       <div class="scroll">
         <table>
-          <thead><tr><th>Time</th><th>Type</th><th>Tool</th><th>Details</th></tr></thead>
+          <thead><tr><th>Time</th><th>Session</th><th>Type</th><th>Tool</th><th>Details</th></tr></thead>
           <tbody id="events"></tbody>
         </table>
       </div>
@@ -216,14 +237,19 @@ DASHBOARD_HTML = """
         dc.textContent = data.detection_count;
         dc.className = 'stat ' + (data.detection_count > 0 ? 'red' : 'green');
 
+        const sTbody = document.getElementById('sessions');
+        sTbody.innerHTML = (data.sessions || []).map(s =>
+          `<tr><td><code>${s.id}</code></td><td>${s.started}</td><td>${s.events}</td><td class="${s.detections > 0 ? 'stat red' : ''}" style="font-size:inherit">${s.detections}</td></tr>`
+        ).join('');
+
         const dTbody = document.getElementById('detections');
         dTbody.innerHTML = data.detections.reverse().map(d =>
-          `<tr><td>${d.time}</td><td>${d.pattern_name}</td><td><span class="badge ${d.severity}">${d.severity}</span></td><td><span class="badge ${d.action}">${d.action}</span></td><td>${d.message}</td></tr>`
+          `<tr><td>${d.time}</td><td><code>${d.session || '?'}</code></td><td>${d.pattern_name}</td><td><span class="badge ${d.severity}">${d.severity}</span></td><td><span class="badge ${d.action}">${d.action}</span></td><td>${d.message}</td></tr>`
         ).join('');
 
         const eTbody = document.getElementById('events');
         eTbody.innerHTML = data.events.slice(-50).reverse().map(e =>
-          `<tr><td>${e.time}</td><td><span class="badge ${e.type}">${e.type}</span></td><td>${e.tool}</td><td>${e.input_preview || (e.success !== undefined ? (e.success ? 'ok' : 'error') : '')}</td></tr>`
+          `<tr><td>${e.time}</td><td><code>${e.session || '?'}</code></td><td><span class="badge ${e.type}">${e.type}</span></td><td>${e.tool}</td><td>${e.input_preview || (e.success !== undefined ? (e.success ? 'ok' : 'error') : '')}</td></tr>`
         ).join('');
       } catch(e) {}
     }
@@ -242,26 +268,53 @@ def dashboard():
 
 @app.route("/api/dashboard")
 def api_dashboard():
+    # Aggregate across all sessions
+    all_events = []
+    all_detections = []
+    total_event_count = 0
+    session_summaries = []
+
+    for sid, sess in sessions.items():
+        short_id = sid[:8] if sid else "unknown"
+        all_events.extend(sess["events"])
+        all_detections.extend(sess["detections"])
+        total_event_count += sess["runtime"].event_count
+        session_summaries.append({
+            "id": short_id,
+            "started": sess["started"],
+            "events": sess["runtime"].event_count,
+            "detections": len(sess["detections"]),
+        })
+
+    # Sort by time
+    all_events.sort(key=lambda e: e["time"])
+    all_detections.sort(key=lambda e: e["time"])
+
     return jsonify({
-        "event_count": runtime.event_count,
-        "detection_count": len(detections_log),
-        "detections": detections_log[-50:],
-        "events": events_log[-50:],
+        "event_count": total_event_count,
+        "detection_count": len(all_detections),
+        "detections": all_detections[-50:],
+        "events": all_events[-50:],
+        "sessions": session_summaries,
     })
 
 
 @app.route("/stats", methods=["GET"])
 def stats():
+    total_events = sum(s["runtime"].event_count for s in sessions.values())
+    all_dets = [d for s in sessions.values() for d in s["detections"]]
     return jsonify({
-        "event_count": runtime.event_count,
-        "detections": len(detections_log),
-        "recent": detections_log[-10:],
+        "event_count": total_events,
+        "sessions": len(sessions),
+        "detections": len(all_dets),
+        "recent": all_dets[-10:],
     })
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "event_count": runtime.event_count})
+    total_events = sum(s["runtime"].event_count for s in sessions.values())
+    return jsonify({"status": "ok", "event_count": total_events, "sessions": len(sessions)})
 
 
 if __name__ == "__main__":
