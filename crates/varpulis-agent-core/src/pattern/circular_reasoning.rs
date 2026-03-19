@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the circular reasoning detector.
 #[derive(Debug, Clone)]
@@ -126,6 +126,7 @@ impl PatternDetector for CircularReasoningDetector {
             vec![Detection {
                 pattern_name: "circular_reasoning".into(),
                 severity: DetectionSeverity::Warning,
+                action: DetectionAction::Alert,
                 message: format!(
                     "Circular pattern detected: {} (repeated {}+ times)",
                     cycle_str, self.config.min_cycle_repetitions,

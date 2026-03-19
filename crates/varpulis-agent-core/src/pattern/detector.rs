@@ -25,6 +25,7 @@ pub trait PatternDetector: Send + Sync {
 pub struct Detection {
     pub pattern_name: String,
     pub severity: DetectionSeverity,
+    pub action: DetectionAction,
     pub message: String,
     pub details: HashMap<String, serde_json::Value>,
     pub timestamp: u64,
@@ -38,4 +39,14 @@ pub enum DetectionSeverity {
     Warning,
     Error,
     Critical,
+}
+
+/// Action suggested by the detector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DetectionAction {
+    /// Notify only — the default.
+    Alert,
+    /// Terminate the agent. Integrations should raise/throw to stop execution.
+    Kill,
 }

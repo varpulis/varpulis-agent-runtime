@@ -13,6 +13,16 @@ import type { VarpulisAgentRuntime } from "../runtime.js";
 import type { Detection } from "../types.js";
 import { hashParams } from "../hash.js";
 
+/** Thrown when a detection with action "kill" fires. Catch this to handle agent termination. */
+export class VarpulisKillError extends Error {
+  readonly detection: Detection;
+  constructor(detection: Detection) {
+    super(`[Varpulis Kill] ${detection.pattern_name}: ${detection.message}`);
+    this.name = "VarpulisKillError";
+    this.detection = detection;
+  }
+}
+
 /**
  * LangChain callback handler that translates LangChain events into
  * Varpulis AgentEvents for real-time behavioral pattern detection.
@@ -29,8 +39,20 @@ export class VarpulisLangChainHandler {
   /** Map runId → start timestamp for duration tracking. */
   private toolStartTimes = new Map<string, number>();
 
-  constructor(runtime: VarpulisAgentRuntime) {
+  /** Whether to throw VarpulisKillError on kill detections. Default: true. */
+  readonly enforceKill: boolean;
+
+  constructor(runtime: VarpulisAgentRuntime, options?: { enforceKill?: boolean }) {
     this.runtime = runtime;
+    this.enforceKill = options?.enforceKill ?? true;
+  }
+
+  private checkKill(detections: Detection[]): Detection[] {
+    if (this.enforceKill) {
+      const kill = detections.find((d) => d.action === "kill");
+      if (kill) throw new VarpulisKillError(kill);
+    }
+    return detections;
   }
 
   handleToolStart(
@@ -52,7 +74,7 @@ export class VarpulisLangChainHandler {
       paramsHash = hashParams({ input: String(input) });
     }
 
-    return this.runtime.observe({
+    return this.checkKill(this.runtime.observe({
       timestamp: Date.now(),
       event_type: {
         type: "ToolCall",
@@ -60,7 +82,7 @@ export class VarpulisLangChainHandler {
         params_hash: paramsHash,
         duration_ms: 0,
       },
-    });
+    }));
   }
 
   handleToolEnd(output: string, runId: string): Detection[] {
@@ -68,14 +90,14 @@ export class VarpulisLangChainHandler {
     this.toolRuns.delete(runId);
     this.toolStartTimes.delete(runId);
 
-    return this.runtime.observe({
+    return this.checkKill(this.runtime.observe({
       timestamp: Date.now(),
       event_type: {
         type: "ToolResult",
         name: toolName,
         success: true,
       },
-    });
+    }));
   }
 
   handleToolError(error: Error | string, runId: string): Detection[] {
@@ -85,7 +107,7 @@ export class VarpulisLangChainHandler {
 
     const errorMsg = typeof error === "string" ? error : error.message;
 
-    return this.runtime.observe({
+    return this.checkKill(this.runtime.observe({
       timestamp: Date.now(),
       event_type: {
         type: "ToolResult",
@@ -93,7 +115,7 @@ export class VarpulisLangChainHandler {
         success: false,
         error: errorMsg,
       },
-    });
+    }));
   }
 
   handleLLMEnd(
@@ -144,7 +166,7 @@ export class VarpulisLangChainHandler {
       }),
     );
 
-    return detections;
+    return this.checkKill(detections);
   }
 
   handleChainStart(
@@ -153,13 +175,13 @@ export class VarpulisLangChainHandler {
     _runId: string,
   ): Detection[] {
     this.stepCounter++;
-    return this.runtime.observe({
+    return this.checkKill(this.runtime.observe({
       timestamp: Date.now(),
       event_type: {
         type: "StepStart",
         step_number: this.stepCounter,
       },
-    });
+    }));
   }
 
   handleChainEnd(
@@ -171,13 +193,13 @@ export class VarpulisLangChainHandler {
       Object.keys(outputs).length > 0 &&
       Object.values(outputs).some((v) => v != null && v !== "");
 
-    return this.runtime.observe({
+    return this.checkKill(this.runtime.observe({
       timestamp: Date.now(),
       event_type: {
         type: "StepEnd",
         step_number: this.stepCounter,
         produced_output: producedOutput,
       },
-    });
+    }));
   }
 }

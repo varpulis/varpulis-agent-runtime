@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the retry storm detector.
 #[derive(Debug, Clone)]
@@ -10,6 +10,8 @@ pub struct RetryStormConfig {
     pub min_repetitions: u32,
     /// Sliding window size in seconds.
     pub window_seconds: u64,
+    /// If set, emit Kill action when count reaches this threshold.
+    pub kill_threshold: Option<u32>,
 }
 
 impl Default for RetryStormConfig {
@@ -17,6 +19,7 @@ impl Default for RetryStormConfig {
         Self {
             min_repetitions: 3,
             window_seconds: 10,
+            kill_threshold: None,
         }
     }
 }
@@ -67,9 +70,20 @@ impl PatternDetector for RetryStormDetector {
             .count() as u32;
 
         if count >= self.config.min_repetitions {
+            let should_kill = self.config.kill_threshold.is_some_and(|t| count >= t);
+
             vec![Detection {
                 pattern_name: "retry_storm".into(),
-                severity: DetectionSeverity::Warning,
+                severity: if should_kill {
+                    DetectionSeverity::Critical
+                } else {
+                    DetectionSeverity::Warning
+                },
+                action: if should_kill {
+                    DetectionAction::Kill
+                } else {
+                    DetectionAction::Alert
+                },
                 message: format!(
                     "Tool '{}' called {} times with identical params in {}s window",
                     name, count, self.config.window_seconds
@@ -146,6 +160,7 @@ mod tests {
         let mut det = RetryStormDetector::new(RetryStormConfig {
             min_repetitions: 3,
             window_seconds: 5,
+            ..Default::default()
         });
 
         assert!(det.process(&tool_call(1000, "search", 42)).is_empty());

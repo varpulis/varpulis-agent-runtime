@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the error spiral detector.
 #[derive(Debug, Clone)]
@@ -10,6 +10,8 @@ pub struct ErrorSpiralConfig {
     pub min_error_count: u32,
     /// Sliding window size in seconds.
     pub window_seconds: u64,
+    /// If set, emit Kill action when error count reaches this threshold.
+    pub kill_threshold: Option<u32>,
 }
 
 impl Default for ErrorSpiralConfig {
@@ -17,6 +19,7 @@ impl Default for ErrorSpiralConfig {
         Self {
             min_error_count: 3,
             window_seconds: 30,
+            kill_threshold: None,
         }
     }
 }
@@ -68,13 +71,24 @@ impl PatternDetector for ErrorSpiralDetector {
         let count = self.recent_errors.len() as u32;
 
         if count >= self.config.min_error_count {
+            let should_kill = self.config.kill_threshold.is_some_and(|t| count >= t);
+
             // Collect unique tool names for context.
             let tool_names: Vec<&str> =
                 self.recent_errors.iter().map(|(_, n)| n.as_str()).collect();
 
             vec![Detection {
                 pattern_name: "error_spiral".into(),
-                severity: DetectionSeverity::Warning,
+                severity: if should_kill {
+                    DetectionSeverity::Critical
+                } else {
+                    DetectionSeverity::Warning
+                },
+                action: if should_kill {
+                    DetectionAction::Kill
+                } else {
+                    DetectionAction::Alert
+                },
                 message: format!(
                     "{} tool errors in {}s window",
                     count, self.config.window_seconds
@@ -158,6 +172,7 @@ mod tests {
         let mut det = ErrorSpiralDetector::new(ErrorSpiralConfig {
             min_error_count: 3,
             window_seconds: 10,
+            ..Default::default()
         });
 
         assert!(det.process(&tool_error(1000, "search", "err")).is_empty());
@@ -172,6 +187,7 @@ mod tests {
         let mut det = ErrorSpiralDetector::new(ErrorSpiralConfig {
             min_error_count: 3,
             window_seconds: 5,
+            ..Default::default()
         });
 
         det.process(&tool_error(1000, "a", "err"));

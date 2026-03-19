@@ -42,6 +42,7 @@ impl PyAgentRuntime {
             .add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
                 min_repetitions: config.min_repetitions.unwrap_or(3),
                 window_seconds: config.window_seconds.unwrap_or(10),
+                kill_threshold: config.kill_threshold,
             })));
         Ok(())
     }
@@ -56,6 +57,7 @@ impl PyAgentRuntime {
                 max_time_without_output_seconds: config
                     .max_time_without_output_seconds
                     .unwrap_or(120),
+                kill_threshold: config.kill_threshold,
             })));
         Ok(())
     }
@@ -68,6 +70,7 @@ impl PyAgentRuntime {
             .add_detector(Box::new(ErrorSpiralDetector::new(ErrorSpiralConfig {
                 min_error_count: config.min_error_count.unwrap_or(3),
                 window_seconds: config.window_seconds.unwrap_or(30),
+                kill_threshold: config.kill_threshold,
             })));
         Ok(())
     }
@@ -143,18 +146,21 @@ impl PyAgentRuntime {
 struct RetryStormConfigJs {
     min_repetitions: Option<u32>,
     window_seconds: Option<u64>,
+    kill_threshold: Option<u32>,
 }
 
 #[derive(serde::Deserialize)]
 struct StuckAgentConfigJs {
     max_steps_without_output: Option<u32>,
     max_time_without_output_seconds: Option<u64>,
+    kill_threshold: Option<u32>,
 }
 
 #[derive(serde::Deserialize)]
 struct ErrorSpiralConfigJs {
     min_error_count: Option<u32>,
     window_seconds: Option<u64>,
+    kill_threshold: Option<u32>,
 }
 
 #[derive(serde::Deserialize)]

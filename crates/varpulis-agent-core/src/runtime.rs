@@ -149,6 +149,7 @@ mod tests {
         rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
+            ..Default::default()
         })));
 
         assert!(rt.observe(tool_call(1000, "search", 42)).is_empty());
@@ -166,6 +167,7 @@ mod tests {
         rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
+            ..Default::default()
         })));
         rt.on_detection(Box::new(move |_det| {
             count_clone.fetch_add(1, Ordering::Relaxed);
@@ -184,6 +186,7 @@ mod tests {
         rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
+            ..Default::default()
         })));
 
         rt.observe(tool_call(1000, "search", 42));
@@ -201,10 +204,12 @@ mod tests {
         rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
+            ..Default::default()
         })));
         rt.add_detector(Box::new(StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 2,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         })));
 
         // Fire retry storm.

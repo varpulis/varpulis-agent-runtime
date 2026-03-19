@@ -8,7 +8,7 @@ pub mod token_velocity;
 
 pub use budget_runaway::{BudgetRunawayConfig, BudgetRunawayDetector};
 pub use circular_reasoning::{CircularReasoningConfig, CircularReasoningDetector};
-pub use detector::{Detection, DetectionSeverity, PatternDetector};
+pub use detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 pub use error_spiral::{ErrorSpiralConfig, ErrorSpiralDetector};
 pub use retry_storm::{RetryStormConfig, RetryStormDetector};
 pub use stuck_agent::{StuckAgentConfig, StuckAgentDetector};

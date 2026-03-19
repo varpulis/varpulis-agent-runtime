@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the budget runaway detector.
 #[derive(Debug, Clone)]
@@ -98,6 +98,7 @@ impl PatternDetector for BudgetRunawayDetector {
             vec![Detection {
                 pattern_name: "budget_runaway".into(),
                 severity: DetectionSeverity::Error,
+                action: DetectionAction::Kill,
                 message: format!(
                     "Budget exceeded: ${:.4} / ${:.2} cost, {} / {} tokens in {}s window",
                     total_cost,
@@ -129,6 +130,7 @@ impl PatternDetector for BudgetRunawayDetector {
             vec![Detection {
                 pattern_name: "budget_runaway".into(),
                 severity: DetectionSeverity::Warning,
+                action: DetectionAction::Alert,
                 message: format!(
                     "Budget warning (80%): ${:.4} / ${:.2} cost, {} / {} tokens in {}s window",
                     total_cost,

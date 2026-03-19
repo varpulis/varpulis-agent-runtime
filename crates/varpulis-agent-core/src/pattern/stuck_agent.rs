@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the stuck agent detector.
 #[derive(Debug, Clone)]
@@ -10,6 +10,8 @@ pub struct StuckAgentConfig {
     pub max_steps_without_output: u32,
     /// Maximum seconds without a FinalAnswer before alerting.
     pub max_time_without_output_seconds: u64,
+    /// If set, emit Kill action when steps without output reaches this threshold.
+    pub kill_threshold: Option<u32>,
 }
 
 impl Default for StuckAgentConfig {
@@ -17,6 +19,7 @@ impl Default for StuckAgentConfig {
         Self {
             max_steps_without_output: 15,
             max_time_without_output_seconds: 120,
+            kill_threshold: None,
         }
     }
 }
@@ -90,6 +93,12 @@ impl PatternDetector for StuckAgentDetector {
 
                 if steps_exceeded || time_exceeded {
                     self.fired = true;
+
+                    let should_kill = self
+                        .config
+                        .kill_threshold
+                        .is_some_and(|t| self.steps_since_output >= t);
+
                     let reason = if steps_exceeded && time_exceeded {
                         format!(
                             "Agent stuck: {} steps and {}s without output",
@@ -117,7 +126,16 @@ impl PatternDetector for StuckAgentDetector {
 
                     vec![Detection {
                         pattern_name: "stuck_agent".into(),
-                        severity: DetectionSeverity::Error,
+                        severity: if should_kill {
+                            DetectionSeverity::Critical
+                        } else {
+                            DetectionSeverity::Error
+                        },
+                        action: if should_kill {
+                            DetectionAction::Kill
+                        } else {
+                            DetectionAction::Alert
+                        },
                         message: reason,
                         details: HashMap::from([
                             (
@@ -180,6 +198,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 3,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         });
 
         assert!(det.process(&step_end(1000, 1, false)).is_empty());
@@ -195,6 +214,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 9999,
             max_time_without_output_seconds: 5,
+            ..Default::default()
         });
 
         // First event sets baseline.
@@ -210,6 +230,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 3,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         });
 
         det.process(&step_end(1000, 1, false));
@@ -229,6 +250,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 3,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         });
 
         det.process(&step_end(1000, 1, false));
@@ -248,6 +270,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 2,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         });
 
         assert!(det.process(&step_end(1000, 1, false)).is_empty());
@@ -262,6 +285,7 @@ mod tests {
         let mut det = StuckAgentDetector::new(StuckAgentConfig {
             max_steps_without_output: 3,
             max_time_without_output_seconds: 9999,
+            ..Default::default()
         });
 
         det.process(&step_end(1000, 1, false));

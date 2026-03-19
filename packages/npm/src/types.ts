@@ -28,6 +28,7 @@ export type AgentEventType =
 export interface Detection {
   pattern_name: string;
   severity: "info" | "warning" | "error" | "critical";
+  action: "alert" | "kill";
   message: string;
   details: Record<string, unknown>;
   timestamp: number;
@@ -39,6 +40,8 @@ export interface RetryStormConfig {
   min_repetitions?: number;
   /** Sliding window in seconds. Default: 10. */
   window_seconds?: number;
+  /** If set, emit kill action when count reaches this threshold. */
+  kill_threshold?: number;
 }
 
 /** Configuration for the stuck agent pattern detector. */
@@ -47,6 +50,8 @@ export interface StuckAgentConfig {
   max_steps_without_output?: number;
   /** Max seconds without output before alerting. Default: 120. */
   max_time_without_output_seconds?: number;
+  /** If set, emit kill action when steps without output reaches this threshold. */
+  kill_threshold?: number;
 }
 
 /** Configuration for the error spiral pattern detector. */
@@ -55,6 +60,8 @@ export interface ErrorSpiralConfig {
   min_error_count?: number;
   /** Sliding window in seconds. Default: 30. */
   window_seconds?: number;
+  /** If set, emit kill action when error count reaches this threshold. */
+  kill_threshold?: number;
 }
 
 /** Configuration for the budget runaway pattern detector. */

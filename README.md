@@ -296,29 +296,9 @@ Every agent action maps to one of these event types:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│                  Agent Process                   │
-│                                                  │
-│  ┌──────────┐    ┌──────────────────────────┐   │
-│  │  Agent    │───▶│  Varpulis Agent Runtime  │   │
-│  │ Framework │    │                          │   │
-│  │ (LangChain│    │  ┌────────────────────┐  │   │
-│  │  CrewAI,  │    │  │  Event Normalizer  │  │   │
-│  │  MCP,     │    │  └────────┬───────────┘  │   │
-│  │  custom)  │    │           │               │   │
-│  └──────────┘    │  ┌────────▼───────────┐  │   │
-│                   │  │  Pattern Engine    │  │   │
-│                   │  │  (Rust/WASM)       │  │   │
-│                   │  └────────┬───────────┘  │   │
-│                   │           │               │   │
-│                   │  ┌────────▼───────────┐  │   │
-│                   │  │  Action Dispatcher │  │   │
-│                   │  │  (callbacks, alert)│  │   │
-│                   │  └────────────────────┘  │   │
-│                   └──────────────────────────┘   │
-└─────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="Varpulis Agent Runtime Architecture" width="720">
+</p>
 
 The runtime is a Rust library compiled to WASM (JavaScript) or a native extension via PyO3 (Python). Pattern detection runs in-process with sub-millisecond latency per event. The engine uses regex-like event pattern matching to detect behavioral sequences across sliding time windows.
 

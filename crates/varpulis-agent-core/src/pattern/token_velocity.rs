@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::event::{AgentEvent, AgentEventType};
-use crate::pattern::detector::{Detection, DetectionSeverity, PatternDetector};
+use crate::pattern::detector::{Detection, DetectionAction, DetectionSeverity, PatternDetector};
 
 /// Configuration for the token velocity spike detector.
 #[derive(Debug, Clone)]
@@ -97,6 +97,7 @@ impl PatternDetector for TokenVelocitySpikeDetector {
                     vec![Detection {
                         pattern_name: "token_velocity_spike".into(),
                         severity: DetectionSeverity::Warning,
+                        action: DetectionAction::Alert,
                         message: format!(
                             "Token spike: {} tokens this step vs {:.0} avg baseline ({:.1}x)",
                             current,
