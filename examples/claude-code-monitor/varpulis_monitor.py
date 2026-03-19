@@ -85,7 +85,51 @@ def receive_event():
         detections_log.append(entry)
         print(f"\033[91m  VARPULIS [{d['severity'].upper()}] {d['pattern_name']}: {d['message']}\033[0m")
 
-    return jsonify({"detections": len(dets)})
+    if not dets:
+        return jsonify({"detections": 0})
+
+    # Build feedback for Claude Code
+    response = {}
+
+    # Collect all detection messages as context
+    feedback_lines = []
+    for d in dets:
+        feedback_lines.append(f"[{d['severity'].upper()}] {d['pattern_name']}: {d['message']}")
+
+    advice = PATTERN_ADVICE.get(dets[0]["pattern_name"], "Consider changing your approach.")
+    feedback_lines.append(f"Suggestion: {advice}")
+
+    context = "VARPULIS CEP DETECTION: " + " | ".join(feedback_lines)
+
+    # For PreToolUse: inject context and optionally block
+    if not is_post:
+        response["hookSpecificOutput"] = {
+            "hookEventName": "PreToolUse",
+            "additionalContext": context,
+        }
+        # If any detection has action=kill, block the tool call
+        if any(d.get("action") == "kill" for d in dets):
+            response["hookSpecificOutput"]["permissionDecision"] = "deny"
+            response["hookSpecificOutput"]["permissionDecisionReason"] = dets[0]["message"]
+
+    # For PostToolUse: inject context as feedback
+    if is_post:
+        response["hookSpecificOutput"] = {
+            "hookEventName": "PostToolUse",
+            "additionalContext": context,
+        }
+
+    return jsonify(response)
+
+
+# Actionable advice per pattern — injected into Claude's context
+PATTERN_ADVICE = {
+    "retry_storm": "You are repeating the same tool call with identical parameters. Stop and try a different approach, different parameters, or a different tool.",
+    "error_spiral": "Multiple tool calls are failing. Pause, analyze the errors, and address the root cause before retrying.",
+    "stuck_agent": "You have been running many steps without producing output. Summarize your findings and provide an answer to the user.",
+    "budget_runaway": "Token/cost usage is high. Be more concise in your prompts and avoid unnecessary LLM calls.",
+    "circular_reasoning": "You are alternating between the same tools in a loop. Break the cycle by trying a completely different approach.",
+}
 
 
 DASHBOARD_HTML = """

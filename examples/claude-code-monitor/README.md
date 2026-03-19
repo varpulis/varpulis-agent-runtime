@@ -100,14 +100,46 @@ The web dashboard at http://localhost:7890/ shows:
 
 Auto-refreshes every 2 seconds — no WebSocket needed.
 
+## Feedback Loop (Self-Correcting Agent)
+
+The monitor doesn't just observe — it **feeds back into Claude Code's context**. When a pattern is detected:
+
+1. The detection message and actionable advice are returned in the hook response
+2. Claude Code injects this as `additionalContext` into the model's next turn
+3. The agent receives guidance like: *"You are repeating the same tool call with identical parameters. Stop and try a different approach."*
+
+For **kill-level detections** (e.g., retry storm exceeding kill threshold), the monitor returns `permissionDecision: "deny"` which blocks the tool call entirely.
+
+This creates a closed loop:
+
+```
+Claude Code ──tool call──▶ Varpulis CEP Engine
+     ▲                           │
+     │                     pattern match?
+     │                           │
+     └──context injection◀──── advice
+```
+
+The agent monitors itself and self-corrects based on CEP pattern detections.
+
+### Advice per pattern
+
+| Pattern | Feedback injected into context |
+|---|---|
+| **Retry Storm** | "Stop and try a different approach, different parameters, or a different tool." |
+| **Error Spiral** | "Pause, analyze the errors, and address the root cause before retrying." |
+| **Stuck Agent** | "Summarize your findings and provide an answer to the user." |
+| **Budget Runaway** | "Be more concise in your prompts and avoid unnecessary LLM calls." |
+| **Circular Reasoning** | "Break the cycle by trying a completely different approach." |
+
 ## Architecture
 
 ```
 Claude Code ──HTTP hooks──▶ Varpulis Monitor (Flask + CEP engine)
-                                    │
-                                    ├── /event   (receives tool events)
-                                    ├── /         (web dashboard)
-                                    └── /stats   (JSON API)
+     ▲                              │
+     │                              ├── /event   (receives + responds with feedback)
+     │                              ├── /         (web dashboard)
+     └──additionalContext◀─────── /stats   (JSON API)
 ```
 
-The monitor runs the full Varpulis CEP engine (Kleene closure + ZDD) in-process via the native Python extension. Each tool call is converted to a CEP event and fed through the pattern matchers.
+The monitor runs the full Varpulis CEP engine (Kleene closure + ZDD) in-process via the native Python extension. Each tool call is converted to a CEP event, fed through the pattern matchers, and detections are returned as actionable context to the agent.
