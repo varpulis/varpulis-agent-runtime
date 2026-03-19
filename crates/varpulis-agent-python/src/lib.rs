@@ -1,4 +1,4 @@
-use wasm_bindgen::prelude::*;
+use pyo3::prelude::*;
 
 use varpulis_agent_core::event::AgentEvent;
 use varpulis_agent_core::pattern::{
@@ -8,38 +8,36 @@ use varpulis_agent_core::pattern::{
 };
 use varpulis_agent_core::runtime::AgentRuntime;
 
-/// WASM-accessible wrapper around the Rust AgentRuntime.
+/// Python-accessible wrapper around the Rust AgentRuntime.
 ///
-/// Events and detections are passed as JSON strings across the WASM boundary.
-#[wasm_bindgen]
-pub struct WasmAgentRuntime {
+/// Events and detections are passed as JSON strings across the FFI boundary.
+#[pyclass]
+struct PyAgentRuntime {
     inner: AgentRuntime,
 }
 
-#[wasm_bindgen]
-impl WasmAgentRuntime {
+#[pymethods]
+impl PyAgentRuntime {
     /// Create an empty runtime with no detectors.
-    #[wasm_bindgen(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    #[new]
+    fn new() -> Self {
         Self {
             inner: AgentRuntime::new(),
         }
     }
 
     /// Create a runtime with all default patterns.
-    #[wasm_bindgen(js_name = "withDefaultPatterns")]
-    pub fn with_default_patterns() -> Self {
+    #[staticmethod]
+    fn with_default_patterns() -> Self {
         Self {
             inner: AgentRuntime::with_default_patterns(),
         }
     }
 
     /// Add a retry storm detector.
-    #[wasm_bindgen(js_name = "addRetryStorm")]
-    pub fn add_retry_storm(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: RetryStormConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_retry_storm(&mut self, config_json: &str) -> PyResult<()> {
+        let config: RetryStormConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
                 min_repetitions: config.min_repetitions.unwrap_or(3),
@@ -49,10 +47,9 @@ impl WasmAgentRuntime {
     }
 
     /// Add a stuck agent detector.
-    #[wasm_bindgen(js_name = "addStuckAgent")]
-    pub fn add_stuck_agent(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: StuckAgentConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_stuck_agent(&mut self, config_json: &str) -> PyResult<()> {
+        let config: StuckAgentConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(StuckAgentDetector::new(StuckAgentConfig {
                 max_steps_without_output: config.max_steps_without_output.unwrap_or(15),
@@ -64,10 +61,9 @@ impl WasmAgentRuntime {
     }
 
     /// Add an error spiral detector.
-    #[wasm_bindgen(js_name = "addErrorSpiral")]
-    pub fn add_error_spiral(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: ErrorSpiralConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_error_spiral(&mut self, config_json: &str) -> PyResult<()> {
+        let config: ErrorSpiralConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(ErrorSpiralDetector::new(ErrorSpiralConfig {
                 min_error_count: config.min_error_count.unwrap_or(3),
@@ -77,10 +73,9 @@ impl WasmAgentRuntime {
     }
 
     /// Add a budget runaway detector.
-    #[wasm_bindgen(js_name = "addBudgetRunaway")]
-    pub fn add_budget_runaway(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: BudgetRunawayConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_budget_runaway(&mut self, config_json: &str) -> PyResult<()> {
+        let config: BudgetRunawayConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(BudgetRunawayDetector::new(BudgetRunawayConfig {
                 max_cost_usd: config.max_cost_usd.unwrap_or(1.00),
@@ -91,10 +86,9 @@ impl WasmAgentRuntime {
     }
 
     /// Add a token velocity spike detector.
-    #[wasm_bindgen(js_name = "addTokenVelocity")]
-    pub fn add_token_velocity(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: TokenVelocityConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_token_velocity(&mut self, config_json: &str) -> PyResult<()> {
+        let config: TokenVelocityConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(TokenVelocitySpikeDetector::new(
                 TokenVelocityConfig {
@@ -106,10 +100,9 @@ impl WasmAgentRuntime {
     }
 
     /// Add a circular reasoning detector.
-    #[wasm_bindgen(js_name = "addCircularReasoning")]
-    pub fn add_circular_reasoning(&mut self, config_json: &str) -> Result<(), JsError> {
-        let config: CircularReasoningConfigJs =
-            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn add_circular_reasoning(&mut self, config_json: &str) -> PyResult<()> {
+        let config: CircularReasoningConfigJs = serde_json::from_str(config_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         self.inner
             .add_detector(Box::new(CircularReasoningDetector::new(
                 CircularReasoningConfig {
@@ -121,33 +114,31 @@ impl WasmAgentRuntime {
     }
 
     /// Set the cooldown period in milliseconds.
-    #[wasm_bindgen(js_name = "setCooldownMs")]
-    pub fn set_cooldown_ms(&mut self, ms: u64) {
+    fn set_cooldown_ms(&mut self, ms: u64) {
         self.inner.set_cooldown_ms(ms);
     }
 
     /// Push an event (as JSON) and return detections (as JSON array).
-    pub fn observe(&mut self, event_json: &str) -> Result<String, JsError> {
-        let event: AgentEvent =
-            serde_json::from_str(event_json).map_err(|e| JsError::new(&e.to_string()))?;
+    fn observe(&mut self, event_json: &str) -> PyResult<String> {
+        let event: AgentEvent = serde_json::from_str(event_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         let detections = self.inner.observe(event);
-        serde_json::to_string(&detections).map_err(|e| JsError::new(&e.to_string()))
+        serde_json::to_string(&detections)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     /// Reset all detector state and cooldowns.
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.inner.reset();
     }
 
     /// Number of events processed.
-    #[wasm_bindgen(js_name = "eventCount")]
-    pub fn event_count(&self) -> u64 {
+    fn event_count(&self) -> u64 {
         self.inner.event_count()
     }
 }
 
-// JSON-friendly config structs with optional fields (defaults applied in Rust).
-
+// JSON-friendly config structs.
 #[derive(serde::Deserialize)]
 struct RetryStormConfigJs {
     min_repetitions: Option<u32>,
@@ -183,4 +174,11 @@ struct TokenVelocityConfigJs {
 struct CircularReasoningConfigJs {
     max_cycle_length: Option<u32>,
     min_cycle_repetitions: Option<u32>,
+}
+
+/// The Python module.
+#[pymodule]
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyAgentRuntime>()?;
+    Ok(())
 }

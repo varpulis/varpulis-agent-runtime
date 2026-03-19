@@ -9,7 +9,7 @@ use crate::event::AgentEvent;
 /// Implementors maintain internal state and are fed events one at a time.
 /// This trait is designed so that a future ZDD/SASE-based engine can be
 /// swapped in as a drop-in replacement.
-pub trait PatternDetector: Send {
+pub trait PatternDetector: Send + Sync {
     /// The unique name of this pattern (e.g. "retry_storm").
     fn name(&self) -> &str;
 

@@ -1,6 +1,6 @@
 use crate::pattern::Detection;
 
-pub type DetectionCallback = Box<dyn Fn(&Detection) + Send>;
+pub type DetectionCallback = Box<dyn Fn(&Detection) + Send + Sync>;
 
 /// Dispatches detections to registered callbacks.
 pub struct ActionDispatcher {

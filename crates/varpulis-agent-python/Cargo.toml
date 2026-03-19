@@ -1,0 +1,16 @@
+[package]
+name = "varpulis-agent-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Python bindings for Varpulis Agent Runtime"
+
+[lib]
+name = "_varpulis_agent_runtime"
+crate-type = ["cdylib"]
+
+[dependencies]
+varpulis-agent-core = { path = "../varpulis-agent-core" }
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

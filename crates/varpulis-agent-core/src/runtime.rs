@@ -1,9 +1,13 @@
 use crate::action::{ActionDispatcher, DetectionCallback};
 use crate::cooldown::CooldownManager;
 use crate::event::AgentEvent;
+use crate::pattern::budget_runaway::{BudgetRunawayConfig, BudgetRunawayDetector};
+use crate::pattern::circular_reasoning::{CircularReasoningConfig, CircularReasoningDetector};
 use crate::pattern::detector::{Detection, PatternDetector};
+use crate::pattern::error_spiral::{ErrorSpiralConfig, ErrorSpiralDetector};
 use crate::pattern::retry_storm::{RetryStormConfig, RetryStormDetector};
 use crate::pattern::stuck_agent::{StuckAgentConfig, StuckAgentDetector};
+use crate::pattern::token_velocity::{TokenVelocityConfig, TokenVelocitySpikeDetector};
 
 /// The main runtime that orchestrates pattern detection for an AI agent.
 ///
@@ -27,8 +31,7 @@ impl AgentRuntime {
         }
     }
 
-    /// Create a runtime pre-loaded with default pattern detectors
-    /// (retry_storm + stuck_agent with default configs).
+    /// Create a runtime pre-loaded with all default pattern detectors.
     pub fn with_default_patterns() -> Self {
         let mut runtime = Self::new();
         runtime.add_detector(Box::new(RetryStormDetector::new(
@@ -36,6 +39,18 @@ impl AgentRuntime {
         )));
         runtime.add_detector(Box::new(StuckAgentDetector::new(
             StuckAgentConfig::default(),
+        )));
+        runtime.add_detector(Box::new(ErrorSpiralDetector::new(
+            ErrorSpiralConfig::default(),
+        )));
+        runtime.add_detector(Box::new(BudgetRunawayDetector::new(
+            BudgetRunawayConfig::default(),
+        )));
+        runtime.add_detector(Box::new(TokenVelocitySpikeDetector::new(
+            TokenVelocityConfig::default(),
+        )));
+        runtime.add_detector(Box::new(CircularReasoningDetector::new(
+            CircularReasoningConfig::default(),
         )));
         runtime
     }

@@ -30,6 +30,18 @@ export class VarpulisAgentRuntime {
           case "stuck_agent":
             this.wasm.addStuckAgent(JSON.stringify(p.config));
             break;
+          case "error_spiral":
+            this.wasm.addErrorSpiral(JSON.stringify(p.config));
+            break;
+          case "budget_runaway":
+            this.wasm.addBudgetRunaway(JSON.stringify(p.config));
+            break;
+          case "token_velocity":
+            this.wasm.addTokenVelocity(JSON.stringify(p.config));
+            break;
+          case "circular_reasoning":
+            this.wasm.addCircularReasoning(JSON.stringify(p.config));
+            break;
         }
       }
     }

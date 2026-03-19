@@ -20,9 +20,40 @@ describe("Patterns", () => {
     expect(p.config).toEqual({ max_steps_without_output: 10 });
   });
 
-  it("returns all defaults", () => {
+  it("creates error_spiral config", () => {
+    const p = Patterns.errorSpiral({ min_error_count: 5 });
+    expect(p.type).toBe("error_spiral");
+    expect(p.config).toEqual({ min_error_count: 5 });
+  });
+
+  it("creates budget_runaway config", () => {
+    const p = Patterns.budgetRunaway({ max_cost_usd: 0.50, max_tokens: 50000 });
+    expect(p.type).toBe("budget_runaway");
+    expect(p.config).toEqual({ max_cost_usd: 0.50, max_tokens: 50000 });
+  });
+
+  it("creates token_velocity config", () => {
+    const p = Patterns.tokenVelocity({ spike_multiplier: 3.0 });
+    expect(p.type).toBe("token_velocity");
+    expect(p.config).toEqual({ spike_multiplier: 3.0 });
+  });
+
+  it("creates circular_reasoning config", () => {
+    const p = Patterns.circularReasoning({ max_cycle_length: 6 });
+    expect(p.type).toBe("circular_reasoning");
+    expect(p.config).toEqual({ max_cycle_length: 6 });
+  });
+
+  it("returns all 6 defaults", () => {
     const all = Patterns.defaults();
-    expect(all).toHaveLength(2);
-    expect(all.map((p) => p.type)).toEqual(["retry_storm", "stuck_agent"]);
+    expect(all).toHaveLength(6);
+    expect(all.map((p) => p.type)).toEqual([
+      "retry_storm",
+      "stuck_agent",
+      "error_spiral",
+      "budget_runaway",
+      "token_velocity",
+      "circular_reasoning",
+    ]);
   });
 });
