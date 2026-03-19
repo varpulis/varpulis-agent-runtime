@@ -1,0 +1,19 @@
+{
+  "name": "varpulis-agent-wasm",
+  "type": "module",
+  "description": "WASM bindings for Varpulis Agent Runtime",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "files": [
+    "varpulis_agent_wasm_bg.wasm",
+    "varpulis_agent_wasm.js",
+    "varpulis_agent_wasm_bg.js",
+    "varpulis_agent_wasm.d.ts"
+  ],
+  "main": "varpulis_agent_wasm.js",
+  "types": "varpulis_agent_wasm.d.ts",
+  "sideEffects": [
+    "./varpulis_agent_wasm.js",
+    "./snippets/*"
+  ]
+}

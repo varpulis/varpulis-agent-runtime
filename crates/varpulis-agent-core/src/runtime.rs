@@ -1,13 +1,13 @@
 use crate::action::{ActionDispatcher, DetectionCallback};
 use crate::cooldown::CooldownManager;
 use crate::event::AgentEvent;
-use crate::pattern::budget_runaway::{BudgetRunawayConfig, BudgetRunawayDetector};
-use crate::pattern::circular_reasoning::{CircularReasoningConfig, CircularReasoningDetector};
 use crate::pattern::detector::{Detection, PatternDetector};
-use crate::pattern::error_spiral::{ErrorSpiralConfig, ErrorSpiralDetector};
-use crate::pattern::retry_storm::{RetryStormConfig, RetryStormDetector};
-use crate::pattern::stuck_agent::{StuckAgentConfig, StuckAgentDetector};
+use crate::pattern::sase_detector::SaseDetector;
 use crate::pattern::token_velocity::{TokenVelocityConfig, TokenVelocitySpikeDetector};
+use crate::pattern::{
+    BudgetRunawayConfig, CircularReasoningConfig, ErrorSpiralConfig, RetryStormConfig,
+    StuckAgentConfig,
+};
 
 /// The main runtime that orchestrates pattern detection for an AI agent.
 ///
@@ -31,26 +31,28 @@ impl AgentRuntime {
         }
     }
 
-    /// Create a runtime pre-loaded with all default pattern detectors.
+    /// Create a runtime pre-loaded with all default SASE-backed pattern detectors.
     pub fn with_default_patterns() -> Self {
         let mut runtime = Self::new();
-        runtime.add_detector(Box::new(RetryStormDetector::new(
-            RetryStormConfig::default(),
+        // SASE-backed detectors (powered by Varpulis CEP with Kleene closure + ZDD)
+        runtime.add_detector(Box::new(SaseDetector::retry_storm(
+            &RetryStormConfig::default(),
         )));
-        runtime.add_detector(Box::new(StuckAgentDetector::new(
-            StuckAgentConfig::default(),
+        runtime.add_detector(Box::new(SaseDetector::stuck_agent(
+            &StuckAgentConfig::default(),
         )));
-        runtime.add_detector(Box::new(ErrorSpiralDetector::new(
-            ErrorSpiralConfig::default(),
+        runtime.add_detector(Box::new(SaseDetector::error_spiral(
+            &ErrorSpiralConfig::default(),
         )));
-        runtime.add_detector(Box::new(BudgetRunawayDetector::new(
-            BudgetRunawayConfig::default(),
+        runtime.add_detector(Box::new(SaseDetector::budget_runaway(
+            &BudgetRunawayConfig::default(),
         )));
+        runtime.add_detector(Box::new(SaseDetector::circular_reasoning(
+            &CircularReasoningConfig::default(),
+        )));
+        // Token velocity uses step-tracking state machine (not a SASE pattern)
         runtime.add_detector(Box::new(TokenVelocitySpikeDetector::new(
             TokenVelocityConfig::default(),
-        )));
-        runtime.add_detector(Box::new(CircularReasoningDetector::new(
-            CircularReasoningConfig::default(),
         )));
         runtime
     }
@@ -146,7 +148,7 @@ mod tests {
     #[test]
     fn observe_returns_detections() {
         let mut rt = AgentRuntime::new();
-        rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
+        rt.add_detector(Box::new(SaseDetector::retry_storm(&RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
             ..Default::default()
@@ -164,7 +166,7 @@ mod tests {
         let count_clone = count.clone();
 
         let mut rt = AgentRuntime::new();
-        rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
+        rt.add_detector(Box::new(SaseDetector::retry_storm(&RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
             ..Default::default()
@@ -183,7 +185,7 @@ mod tests {
     fn cooldown_prevents_repeated_alerts() {
         let mut rt = AgentRuntime::new();
         rt.set_cooldown_ms(5000);
-        rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
+        rt.add_detector(Box::new(SaseDetector::retry_storm(&RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
             ..Default::default()
@@ -201,12 +203,12 @@ mod tests {
     fn multiple_detectors_run() {
         let mut rt = AgentRuntime::new();
         rt.set_cooldown_ms(0);
-        rt.add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
+        rt.add_detector(Box::new(SaseDetector::retry_storm(&RetryStormConfig {
             min_repetitions: 2,
             window_seconds: 10,
             ..Default::default()
         })));
-        rt.add_detector(Box::new(StuckAgentDetector::new(StuckAgentConfig {
+        rt.add_detector(Box::new(SaseDetector::stuck_agent(&StuckAgentConfig {
             max_steps_without_output: 2,
             max_time_without_output_seconds: 9999,
             ..Default::default()

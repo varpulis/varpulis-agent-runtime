@@ -9,3 +9,6 @@ description = "Real-time behavioral pattern detection for AI agents"
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+varpulis-core = { workspace = true }
+varpulis-sase = { workspace = true }
+chrono = { workspace = true }

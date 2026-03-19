@@ -2,9 +2,8 @@ use wasm_bindgen::prelude::*;
 
 use varpulis_agent_core::event::AgentEvent;
 use varpulis_agent_core::pattern::{
-    BudgetRunawayConfig, BudgetRunawayDetector, CircularReasoningConfig, CircularReasoningDetector,
-    ErrorSpiralConfig, ErrorSpiralDetector, RetryStormConfig, RetryStormDetector, StuckAgentConfig,
-    StuckAgentDetector, TokenVelocityConfig, TokenVelocitySpikeDetector,
+    BudgetRunawayConfig, CircularReasoningConfig, ErrorSpiralConfig, RetryStormConfig,
+    SaseDetector, StuckAgentConfig, TokenVelocityConfig, TokenVelocitySpikeDetector,
 };
 use varpulis_agent_core::runtime::AgentRuntime;
 
@@ -35,13 +34,13 @@ impl WasmAgentRuntime {
         }
     }
 
-    /// Add a retry storm detector.
+    /// Add a retry storm detector (SASE-backed with Kleene+).
     #[wasm_bindgen(js_name = "addRetryStorm")]
     pub fn add_retry_storm(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: RetryStormConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
         self.inner
-            .add_detector(Box::new(RetryStormDetector::new(RetryStormConfig {
+            .add_detector(Box::new(SaseDetector::retry_storm(&RetryStormConfig {
                 min_repetitions: config.min_repetitions.unwrap_or(3),
                 window_seconds: config.window_seconds.unwrap_or(10),
                 kill_threshold: config.kill_threshold,
@@ -49,13 +48,13 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
-    /// Add a stuck agent detector.
+    /// Add a stuck agent detector (SASE-backed with Kleene+).
     #[wasm_bindgen(js_name = "addStuckAgent")]
     pub fn add_stuck_agent(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: StuckAgentConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
         self.inner
-            .add_detector(Box::new(StuckAgentDetector::new(StuckAgentConfig {
+            .add_detector(Box::new(SaseDetector::stuck_agent(&StuckAgentConfig {
                 max_steps_without_output: config.max_steps_without_output.unwrap_or(15),
                 max_time_without_output_seconds: config
                     .max_time_without_output_seconds
@@ -65,13 +64,13 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
-    /// Add an error spiral detector.
+    /// Add an error spiral detector (SASE-backed with Kleene+).
     #[wasm_bindgen(js_name = "addErrorSpiral")]
     pub fn add_error_spiral(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: ErrorSpiralConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
         self.inner
-            .add_detector(Box::new(ErrorSpiralDetector::new(ErrorSpiralConfig {
+            .add_detector(Box::new(SaseDetector::error_spiral(&ErrorSpiralConfig {
                 min_error_count: config.min_error_count.unwrap_or(3),
                 window_seconds: config.window_seconds.unwrap_or(30),
                 kill_threshold: config.kill_threshold,
@@ -79,17 +78,19 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
-    /// Add a budget runaway detector.
+    /// Add a budget runaway detector (SASE Kleene+ with post-match aggregation).
     #[wasm_bindgen(js_name = "addBudgetRunaway")]
     pub fn add_budget_runaway(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: BudgetRunawayConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
         self.inner
-            .add_detector(Box::new(BudgetRunawayDetector::new(BudgetRunawayConfig {
-                max_cost_usd: config.max_cost_usd.unwrap_or(1.00),
-                max_tokens: config.max_tokens.unwrap_or(100_000),
-                window_seconds: config.window_seconds.unwrap_or(60),
-            })));
+            .add_detector(Box::new(SaseDetector::budget_runaway(
+                &BudgetRunawayConfig {
+                    max_cost_usd: config.max_cost_usd.unwrap_or(1.00),
+                    max_tokens: config.max_tokens.unwrap_or(100_000),
+                    window_seconds: config.window_seconds.unwrap_or(60),
+                },
+            )));
         Ok(())
     }
 
@@ -108,14 +109,14 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
-    /// Add a circular reasoning detector.
+    /// Add a circular reasoning detector (SASE sequence pattern).
     #[wasm_bindgen(js_name = "addCircularReasoning")]
     pub fn add_circular_reasoning(&mut self, config_json: &str) -> Result<(), JsError> {
         let config: CircularReasoningConfigJs =
             serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
         self.inner
-            .add_detector(Box::new(CircularReasoningDetector::new(
-                CircularReasoningConfig {
+            .add_detector(Box::new(SaseDetector::circular_reasoning(
+                &CircularReasoningConfig {
                     max_cycle_length: config.max_cycle_length.unwrap_or(4),
                     min_cycle_repetitions: config.min_cycle_repetitions.unwrap_or(2),
                 },

@@ -72,6 +72,113 @@ impl AgentEvent {
         }
     }
 
+    /// Convert to a Varpulis CEP Event for pattern matching.
+    pub fn to_cep_event(&self) -> varpulis_core::Event {
+        let (event_type, fields) = match &self.event_type {
+            AgentEventType::ToolCall {
+                name,
+                params_hash,
+                duration_ms,
+            } => (
+                "ToolCall",
+                vec![
+                    ("name", varpulis_core::Value::from(name.as_str())),
+                    (
+                        "params_hash",
+                        varpulis_core::Value::Int(*params_hash as i64),
+                    ),
+                    (
+                        "duration_ms",
+                        varpulis_core::Value::Int(*duration_ms as i64),
+                    ),
+                ],
+            ),
+            AgentEventType::ToolResult {
+                name,
+                success,
+                error,
+            } => (
+                "ToolResult",
+                vec![
+                    ("name", varpulis_core::Value::from(name.as_str())),
+                    ("success", varpulis_core::Value::Bool(*success)),
+                    (
+                        "error",
+                        varpulis_core::Value::from(error.as_deref().unwrap_or("")),
+                    ),
+                ],
+            ),
+            AgentEventType::LlmCall {
+                model,
+                input_tokens,
+                output_tokens,
+                cost_usd,
+            } => (
+                "LlmCall",
+                vec![
+                    ("model", varpulis_core::Value::from(model.as_str())),
+                    (
+                        "input_tokens",
+                        varpulis_core::Value::Int(*input_tokens as i64),
+                    ),
+                    (
+                        "output_tokens",
+                        varpulis_core::Value::Int(*output_tokens as i64),
+                    ),
+                    ("cost_usd", varpulis_core::Value::Float(*cost_usd)),
+                ],
+            ),
+            AgentEventType::LlmResponse {
+                model,
+                has_tool_use,
+            } => (
+                "LlmResponse",
+                vec![
+                    ("model", varpulis_core::Value::from(model.as_str())),
+                    ("has_tool_use", varpulis_core::Value::Bool(*has_tool_use)),
+                ],
+            ),
+            AgentEventType::StepStart { step_number } => (
+                "StepStart",
+                vec![(
+                    "step_number",
+                    varpulis_core::Value::Int(*step_number as i64),
+                )],
+            ),
+            AgentEventType::StepEnd {
+                step_number,
+                produced_output,
+            } => (
+                "StepEnd",
+                vec![
+                    (
+                        "step_number",
+                        varpulis_core::Value::Int(*step_number as i64),
+                    ),
+                    (
+                        "produced_output",
+                        varpulis_core::Value::Bool(*produced_output),
+                    ),
+                ],
+            ),
+            AgentEventType::FinalAnswer { content_length } => (
+                "FinalAnswer",
+                vec![(
+                    "content_length",
+                    varpulis_core::Value::Int(*content_length as i64),
+                )],
+            ),
+        };
+
+        let ts = chrono::DateTime::from_timestamp_millis(self.timestamp as i64).unwrap_or_default();
+
+        let mut cep_event = varpulis_core::Event::new(event_type).with_timestamp(ts);
+        for (key, value) in fields {
+            cep_event = cep_event.with_field(key, value);
+        }
+        cep_event
+    }
+
     /// Returns the tool name if this is a ToolCall or ToolResult event.
     pub fn tool_name(&self) -> Option<&str> {
         match &self.event_type {
