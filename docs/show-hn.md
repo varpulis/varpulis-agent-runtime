@@ -13,13 +13,22 @@ If you've deployed LangChain, MCP, or custom agents in production, you've probab
 - **Budget runaway:** Agent burns through $50 in API credits in a single run because nobody set a limit
 - **Stuck agent:** 30 steps of "thinking" without ever producing an answer
 
-The problem is these failures are invisible to existing tools. Each individual step looks fine — it's the *sequence over time* that reveals the problem. Observability tools (LangSmith, Braintrust) only show you traces after the damage is done. Static guardrails (NeMo, Guardrails AI) validate individual inputs/outputs but can't see temporal patterns.
+The problem is these failures are invisible to existing tools. Each individual step looks fine — it's the *sequence over time* that reveals the problem. Observability tools show you traces after the damage is done. Static guardrails validate individual inputs/outputs but can't see temporal patterns.
 
-**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's a Rust library compiled to WASM (for JS/TS) and native extension via PyO3 (for Python). Runs in-process with <1ms latency per event. 220KB WASM bundle.
+Without something like this, the typical fix is a hardcoded `max_iterations=10` and a prayer.
 
-**6 pre-packaged patterns:** retry storm, stuck agent, error spiral, budget runaway, token velocity spike, circular reasoning. All configurable, with sensible defaults.
+**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's built on a SASE+ Complex Event Processing engine (NFA-based pattern matching with Kleene closure), compiled to WASM for JS/TS and native extension via PyO3 for Python. Runs in-process with <1ms latency per event. 380KB WASM bundle.
 
-**Kill action:** When a pattern exceeds a configurable threshold, the runtime can suggest terminating the agent. The LangChain integration throws `VarpulisKillError` to stop execution.
+Each pattern is a SASE+ query with Kleene closure (`+` = one or more repetitions):
+
+- **Retry storm:** `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s`
+- **Error spiral:** `ToolResult{success = false}+ WITHIN 30s`
+- **Stuck agent:** `StepEnd{produced_output = false}+` with `NOT FinalAnswer` negation
+- **Circular reasoning:** `SEQ(A, B{name != A.name}, A2{name = A.name}, B2{name = B.name})`
+
+The Kleene closure is backed by Zero-suppressed Decision Diagrams (ZDD) to avoid exponential blowup — 20 events in a Kleene match produce ~1M combinations represented in ~100 ZDD nodes.
+
+**6 pre-packaged patterns**, all configurable. **Kill action** when thresholds are exceeded. Works with LangChain, MCP, OpenAI Agents SDK, or any custom agent.
 
 Quick example (Python):
 
@@ -37,10 +46,6 @@ def handle(detection):
     print(f"Detected: {detection['message']}")
 ```
 
-Works with LangChain, MCP, OpenAI Agents SDK, or any custom agent via the raw `observe()` API.
-
-The pattern detection engine uses regex-like event pattern matching with sliding time windows. Under the hood it's inspired by Complex Event Processing (CEP), but the API is just "push events, get detections" — no query language needed for the built-in patterns.
-
-Built with Rust, wasm-bindgen, PyO3. 96 tests (54 Rust unit, 18 TS unit, 24 Playwright e2e running WASM in Chromium). Apache 2.0.
+Built with Rust, wasm-bindgen, PyO3. 103 tests (61 Rust unit, 18 TS unit, 24 Playwright e2e running WASM in Chromium). Apache 2.0.
 
 Would love feedback on which failure modes matter most to you and what patterns are missing.

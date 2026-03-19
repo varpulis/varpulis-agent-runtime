@@ -11,7 +11,9 @@ pip install varpulis-agent-runtime
 ```
 
 Works with **LangChain**, **MCP**, **OpenAI Agents SDK**, or any custom agent.
-Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, 220KB bundle.
+Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, 380KB bundle.
+
+Powered by the **Varpulis CEP engine** — a production-grade Complex Event Processing engine with SASE+ pattern matching, Kleene closure, and Zero-suppressed Decision Diagrams (ZDD) for efficient combinatorial matching.
 
 ---
 
@@ -300,7 +302,26 @@ Every agent action maps to one of these event types:
   <img src="docs/architecture.svg" alt="Varpulis Agent Runtime Architecture" width="720">
 </p>
 
-The runtime is a Rust library compiled to WASM (JavaScript) or a native extension via PyO3 (Python). Pattern detection runs in-process with sub-millisecond latency per event. The engine uses regex-like event pattern matching to detect behavioral sequences across sliding time windows.
+The runtime is powered by the **Varpulis CEP engine** — a SASE+ (Stream-based And Shared Event processing) pattern matching engine compiled to WASM (JavaScript) or native extension via PyO3 (Python).
+
+Each behavioral pattern is expressed as a SASE+ query with **Kleene closure** (one-or-more repetition), **cross-event predicates** (e.g., "same tool name as the first call"), and **temporal windows**. The engine uses an NFA-based matcher with **Zero-suppressed Decision Diagrams (ZDD)** to efficiently handle combinatorial explosion in unbounded repetition matching — 20 events in a Kleene closure produce ~1M combinations represented in ~100 ZDD nodes, not 1M explicit states.
+
+Pattern detection runs in-process with sub-millisecond latency per event. 380KB WASM bundle.
+
+### SASE Patterns Under the Hood
+
+Each pre-packaged pattern maps to a SASE+ expression:
+
+| Pattern | SASE+ Expression |
+|---|---|
+| **Retry Storm** | `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s` |
+| **Error Spiral** | `ToolResult{success = false}+ WITHIN 30s` |
+| **Budget Runaway** | `LlmCall+ WITHIN 60s` with post-match aggregation on `cost_usd` and tokens |
+| **Stuck Agent** | `StepEnd{produced_output = false}+ WITHIN 120s` with `NOT FinalAnswer` negation |
+| **Circular Reasoning** | `SEQ(ToolCall AS a, ToolCall{name != a.name} AS b, ToolCall{name = a.name}, ToolCall{name = b.name})` |
+| **Token Velocity** | Stateful step-tracking with moving average baseline |
+
+The `+` operator is **Kleene closure** — it matches one or more repetitions of the inner pattern. The ZDD data structure compactly represents all valid event combinations without exponential blowup.
 
 ---
 

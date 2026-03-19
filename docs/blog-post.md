@@ -12,6 +12,8 @@ Current tools for AI agent reliability fall into two categories:
 
 **Static guardrails** (Guardrails AI, NeMo Guardrails) validate individual inputs and outputs. They can catch PII in prompts or malformed JSON in responses. But they can't detect *patterns over time* — they see each step in isolation.
 
+Without something better, the typical fix is a hardcoded `max_iterations=10` and a prayer.
+
 What's missing is real-time detection of **behavioral patterns**: sequences of agent actions that indicate something has gone wrong.
 
 ## Six Failure Modes You've Probably Seen
@@ -92,16 +94,28 @@ agent.invoke({"input": "..."}, config={"callbacks": [handler]})
 
 The handler translates LangChain events (tool calls, LLM responses, chain steps) into Varpulis events automatically. When a kill-worthy detection fires, it throws `VarpulisKillError` to stop the agent.
 
-## How It Works
+## How It Works: SASE+ Pattern Matching with Kleene Closure
 
-The runtime is written in Rust and compiled to WASM for JavaScript or a native Python extension via PyO3. It runs in-process with sub-millisecond latency — no network calls, no infrastructure.
+The runtime is built on the **Varpulis CEP engine** — a SASE+ (Stream-based And Shared Event processing) Complex Event Processing engine written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure.
 
-Under the hood, the pattern engine uses sliding time windows and stateful detectors. Each pattern maintains its own state (ring buffers for retry detection, counters for stuck agents, moving averages for token velocity) and processes events in O(1) amortized time.
+Each behavioral pattern is a SASE+ query with **Kleene closure** — the `+` operator that matches one or more repetitions:
 
-The WASM bundle is 220KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
+| Pattern | SASE+ Expression |
+|---|---|
+| Retry Storm | `SEQ(ToolCall AS first, ToolCall+ WHERE name = first.name AND params_hash = first.params_hash) WITHIN 10s` |
+| Error Spiral | `ToolResult{success = false}+ WITHIN 30s` |
+| Budget Runaway | `LlmCall+ WITHIN 60s` with post-match aggregation on cost/tokens |
+| Stuck Agent | `StepEnd{produced_output = false}+` with `NOT FinalAnswer` negation |
+| Circular Reasoning | `SEQ(A, B{name != A.name}, A2{name = A.name}, B2{name = B.name})` |
+
+The Kleene closure is backed by **Zero-suppressed Decision Diagrams (ZDD)** to avoid exponential blowup. When 20 events match a Kleene pattern, there are naively 2^20 (~1M) possible combinations. The ZDD represents all of them in ~100 nodes — not 1M explicit states.
+
+The engine processes events through an NFA (compiled from the SASE pattern), maintains active partial-match runs, and emits matches when a pattern completes. Cross-event predicates like `name = first.name` let patterns reference previously captured events.
+
+The WASM bundle is 380KB. Events cross the boundary as JSON strings — simple, debuggable, zero-dependency.
 
 ## What's Next
 
-We're building this in the open at [github.com/varpulis/varpulis-agent-runtime](https://github.com/varpulis/varpulis-agent-runtime). The library is Apache 2.0 licensed and has 96 tests including Playwright e2e tests that run the WASM in a real browser.
+We're building this in the open at [github.com/varpulis/varpulis-agent-runtime](https://github.com/varpulis/varpulis-agent-runtime). The library is Apache 2.0 licensed and has 103 tests including Playwright e2e tests that run the WASM + SASE engine in a real Chromium browser.
 
 We'd love to hear which failure modes matter most to you and what patterns are missing. Open an issue or drop by the repo.
