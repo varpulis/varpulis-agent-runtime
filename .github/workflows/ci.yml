@@ -14,13 +14,19 @@ jobs:
     name: Rust (test + clippy + fmt)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: varpulis/cep
+          path: ../cep
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v3
 
       - name: Check formatting
         run: cargo fmt --all --check
@@ -35,19 +41,28 @@ jobs:
     name: Build WASM
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: varpulis/cep
+          path: ../cep
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v3
 
       - name: Install wasm-pack
         run: cargo install wasm-pack
 
       - name: Build WASM
         run: wasm-pack build crates/varpulis-agent-wasm --target bundler --out-dir ../../packages/npm/wasm
+
+      - name: Remove wasm-pack gitignore
+        run: rm -f packages/npm/wasm/.gitignore
 
       - name: Check bundle size
         run: |
@@ -59,7 +74,7 @@ jobs:
           fi
 
       - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: wasm-bundle
           path: packages/npm/wasm/
@@ -69,14 +84,14 @@ jobs:
     needs: wasm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
       - name: Download WASM artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: wasm-bundle
           path: packages/npm/wasm/
@@ -98,14 +113,14 @@ jobs:
     needs: wasm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
       - name: Download WASM artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: wasm-bundle
           path: packages/npm/wasm/
@@ -126,11 +141,17 @@ jobs:
     name: Python (build + test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: varpulis/cep
+          path: ../cep
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v3
 
       - uses: actions/setup-python@v5
         with:
