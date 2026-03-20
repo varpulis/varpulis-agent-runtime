@@ -85,6 +85,22 @@ export class VarpulisAgentRuntime {
     });
   }
 
+  /**
+   * Add custom patterns from VPL source.
+   * Each `pattern` declaration becomes a detector.
+   *
+   * @example
+   * runtime.addPatternsFromVpl(`
+   *   pattern GoalDrift = SEQ(
+   *     ToolCall as first,
+   *     ToolCall+ where name != first.name as drift
+   *   ) within 60s
+   * `);
+   */
+  addPatternsFromVpl(vplSource: string): number {
+    return this.wasm.addPatternsFromVpl(vplSource);
+  }
+
   /** Reset all detector state and cooldowns. */
   reset(): void {
     this.wasm.reset();

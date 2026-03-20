@@ -22,6 +22,10 @@ export class WasmAgentRuntime {
      */
     addErrorSpiral(config_json: string): void;
     /**
+     * Add patterns from VPL source. Returns the number of patterns added.
+     */
+    addPatternsFromVpl(vpl_source: string): number;
+    /**
      * Add a retry storm detector (SASE-backed with Kleene+).
      */
     addRetryStorm(config_json: string): void;

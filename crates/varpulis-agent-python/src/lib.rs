@@ -117,6 +117,13 @@ impl PyAgentRuntime {
         Ok(())
     }
 
+    /// Add patterns from VPL source. Returns the number of patterns added.
+    fn add_patterns_from_vpl(&mut self, vpl_source: &str) -> PyResult<usize> {
+        self.inner
+            .add_patterns_from_vpl(vpl_source)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e))
+    }
+
     /// Set the cooldown period in milliseconds.
     fn set_cooldown_ms(&mut self, ms: u64) {
         self.inner.set_cooldown_ms(ms);

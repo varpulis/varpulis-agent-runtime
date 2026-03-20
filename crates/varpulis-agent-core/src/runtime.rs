@@ -62,6 +62,22 @@ impl AgentRuntime {
         self.detectors.push(detector);
     }
 
+    /// Add patterns from VPL source. Each `pattern` declaration in the VPL
+    /// becomes a SASE-backed detector. Returns the number of patterns added.
+    pub fn add_patterns_from_vpl(&mut self, vpl_source: &str) -> Result<usize, String> {
+        let compiled = crate::vpl_compiler::compile_vpl(vpl_source)?;
+        let count = compiled.len();
+        for cp in compiled {
+            let engine = varpulis_sase::SaseEngine::new(cp.pattern);
+            // Generic VPL detector — returns all match results as detections
+            let name = cp.name.clone();
+            self.detectors.push(Box::new(
+                crate::pattern::sase_detector::VplDetector::new(name, engine),
+            ));
+        }
+        Ok(count)
+    }
+
     /// Register a callback invoked on every detection (after cooldown filtering).
     pub fn on_detection(&mut self, cb: DetectionCallback) {
         self.dispatcher.on_detection(cb);

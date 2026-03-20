@@ -3,3 +3,4 @@ pub mod cooldown;
 pub mod event;
 pub mod pattern;
 pub mod runtime;
+pub mod vpl_compiler;

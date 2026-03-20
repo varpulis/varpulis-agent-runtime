@@ -5,6 +5,7 @@ export const __wbg_wasmagentruntime_free: (a: number, b: number) => void;
 export const wasmagentruntime_addBudgetRunaway: (a: number, b: number, c: number) => [number, number];
 export const wasmagentruntime_addCircularReasoning: (a: number, b: number, c: number) => [number, number];
 export const wasmagentruntime_addErrorSpiral: (a: number, b: number, c: number) => [number, number];
+export const wasmagentruntime_addPatternsFromVpl: (a: number, b: number, c: number) => [number, number, number];
 export const wasmagentruntime_addRetryStorm: (a: number, b: number, c: number) => [number, number];
 export const wasmagentruntime_addStuckAgent: (a: number, b: number, c: number) => [number, number];
 export const wasmagentruntime_addTokenVelocity: (a: number, b: number, c: number) => [number, number];

@@ -1,0 +1,6 @@
+pattern CircularReasoning = SEQ(
+    ToolCall as a,
+    ToolCall where name != a.name as b,
+    ToolCall where name == a.name as a2,
+    ToolCall where name == b.name as b2
+)

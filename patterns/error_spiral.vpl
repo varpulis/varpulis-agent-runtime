@@ -1,0 +1,3 @@
+pattern ErrorSpiral = SEQ(
+    ToolResult+ where success == false as error
+) within 30s

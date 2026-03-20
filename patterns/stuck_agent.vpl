@@ -1,0 +1,3 @@
+pattern StuckAgent = SEQ(
+    StepEnd+ where produced_output == false as step
+) within 120s

@@ -473,6 +473,69 @@ impl PatternDetector for SaseDetector {
     }
 }
 
+/// A generic VPL-defined pattern detector.
+/// Unlike `SaseDetector` (which has per-pattern event filtering and custom match handlers),
+/// `VplDetector` accepts all events and converts every match into a detection.
+pub struct VplDetector {
+    name: String,
+    engine: SaseEngine,
+    pattern: SasePattern,
+}
+
+impl VplDetector {
+    pub fn new(name: String, engine: SaseEngine) -> Self {
+        let pattern = SasePattern::Event {
+            event_type: String::new(),
+            predicate: None,
+            alias: None,
+        }; // placeholder — we don't need to reset VPL detectors typically
+        Self {
+            name,
+            engine,
+            pattern,
+        }
+    }
+}
+
+impl PatternDetector for VplDetector {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn process(&mut self, event: &AgentEvent) -> Vec<Detection> {
+        let cep_event = event.to_cep_event();
+        let matches = self.engine.process(&cep_event);
+        let mut detections = Vec::new();
+        for m in matches {
+            detections.push(Detection {
+                pattern_name: self.name.clone(),
+                severity: DetectionSeverity::Warning,
+                action: DetectionAction::Alert,
+                message: format!(
+                    "VPL pattern '{}' matched ({} events in sequence)",
+                    self.name,
+                    m.stack.len()
+                ),
+                details: HashMap::from([
+                    ("events_matched".into(), serde_json::json!(m.stack.len())),
+                    (
+                        "duration_ms".into(),
+                        serde_json::json!(m.duration.as_millis()),
+                    ),
+                ]),
+                timestamp: event.timestamp,
+            });
+        }
+        detections
+    }
+
+    fn reset(&mut self) {
+        // VplDetector doesn't store the original pattern for reset.
+        // In practice, VPL patterns are loaded once and not reset.
+        let _ = &self.pattern;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

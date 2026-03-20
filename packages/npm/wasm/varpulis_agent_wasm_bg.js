@@ -58,6 +58,20 @@ export class WasmAgentRuntime {
         }
     }
     /**
+     * Add patterns from VPL source. Returns the number of patterns added.
+     * @param {string} vpl_source
+     * @returns {number}
+     */
+    addPatternsFromVpl(vpl_source) {
+        const ptr0 = passStringToWasm0(vpl_source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmagentruntime_addPatternsFromVpl(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
+    }
+    /**
      * Add a retry storm detector (SASE-backed with Kleene+).
      * @param {string} config_json
      */

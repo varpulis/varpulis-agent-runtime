@@ -11,4 +11,5 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 varpulis-core = { workspace = true }
 varpulis-sase = { workspace = true }
+varpulis-parser = { workspace = true }
 chrono = { workspace = true }

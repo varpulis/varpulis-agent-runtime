@@ -19,6 +19,7 @@ wasm-bindgen = "0.2"
 pyo3 = { version = "0.23", features = ["extension-module"] }
 varpulis-core = { path = "../cep/crates/varpulis-core" }
 varpulis-sase = { path = "../cep/crates/varpulis-sase" }
+varpulis-parser = { path = "../cep/crates/varpulis-parser" }
 chrono = "0.4"
 
 [profile.release]

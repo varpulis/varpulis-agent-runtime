@@ -1,0 +1,4 @@
+pattern RetryStorm = SEQ(
+    ToolCall as first,
+    ToolCall+ where name == first.name and params_hash == first.params_hash as repeat
+) within 10s

@@ -124,6 +124,14 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
+    /// Add patterns from VPL source. Returns the number of patterns added.
+    #[wasm_bindgen(js_name = "addPatternsFromVpl")]
+    pub fn add_patterns_from_vpl(&mut self, vpl_source: &str) -> Result<usize, JsError> {
+        self.inner
+            .add_patterns_from_vpl(vpl_source)
+            .map_err(|e| JsError::new(&e))
+    }
+
     /// Set the cooldown period in milliseconds.
     #[wasm_bindgen(js_name = "setCooldownMs")]
     pub fn set_cooldown_ms(&mut self, ms: u64) {

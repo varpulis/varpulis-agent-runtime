@@ -1,0 +1,3 @@
+pattern BudgetRunaway = SEQ(
+    LlmCall+ as call
+) within 60s
