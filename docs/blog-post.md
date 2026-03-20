@@ -31,7 +31,7 @@ What's missing is real-time detection of **behavioral patterns**: sequences of a
 
 We built [Varpulis Agent Runtime](https://github.com/varpulis/varpulis-agent-runtime), an open-source library that detects these patterns in real-time. Think of it as regex for event streams, applied to AI agent behavior.
 
-The runtime is built on the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure. 316KB WASM bundle.
+The runtime is built on the **Varpulis CEP engine** — an NFA-based pattern matching engine with Kleene closure support, written in Rust. It compiles to WASM for JavaScript or a native Python extension via PyO3. Runs in-process with sub-millisecond latency — no network calls, no infrastructure. ~1MB WASM bundle.
 
 Each behavioral pattern is a Kleene closure expression — the `+` operator matches one or more repetitions:
 
@@ -133,6 +133,21 @@ agent.invoke({"input": "..."}, config={"callbacks": [handler]})
 ```
 
 The handler translates LangChain events into Varpulis events automatically. When a kill-worthy detection fires, it throws `VarpulisKillError` to stop the agent.
+
+### Custom VPL Patterns
+
+The built-in patterns ship as `.vpl` files — readable, auditable, forkable. You can also add your own at runtime:
+
+```python
+runtime.add_patterns_from_vpl("""
+    pattern GoalDrift = SEQ(
+        ToolCall as first,
+        ToolCall+ where name != first.name as drift
+    ) within 60s
+""")
+```
+
+VPL (Varpulis Pattern Language) is a declarative language for event patterns. The parser compiles VPL into NFA-based matchers at runtime — no code generation, no build step.
 
 ## What's Next
 

@@ -17,7 +17,7 @@ The problem is these failures are invisible to existing tools. Each individual s
 
 Without something like this, the typical fix is a hardcoded `max_iterations=10` and a prayer.
 
-**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's built on an NFA-based pattern matching engine with Kleene closure support, compiled to WASM for JS/TS and native extension via PyO3 for Python. <1ms latency per event. 316KB WASM bundle.
+**Varpulis Agent Runtime** detects these behavioral patterns as they unfold. It's built on an NFA-based pattern matching engine with Kleene closure support, compiled to WASM for JS/TS and native extension via PyO3 for Python. <1ms latency per event. ~1MB WASM bundle (includes VPL parser).
 
 Each pattern is a Kleene closure expression (`+` = one or more repetitions):
 
@@ -31,7 +31,7 @@ budget_runaway:      llm_call{+} within 60s where sum(cost) > threshold
 
 The Kleene closure is backed by Zero-suppressed Decision Diagrams (ZDD) to avoid exponential blowup — 20 events in a Kleene match produce ~1M combinations represented in ~100 ZDD nodes.
 
-**6 pre-packaged patterns**, all configurable. **Kill action** when thresholds are exceeded. Works with LangChain, MCP, OpenAI Agents SDK, or any custom agent.
+**6 pre-packaged patterns** (shipped as `.vpl` files), all configurable. **Custom VPL patterns** at runtime — no Rust code needed. **Kill action** when thresholds are exceeded. Works with LangChain, MCP, OpenAI Agents SDK, or any custom agent.
 
 Quick example (Python):
 

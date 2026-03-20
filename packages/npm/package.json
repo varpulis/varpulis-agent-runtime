@@ -1,6 +1,6 @@
 {
   "name": "@varpulis/agent-runtime",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Real-time behavioral guardrails for AI agents. Detect retry storms, circular reasoning, budget overruns, and failure spirals — as they happen.",
   "type": "module",
   "main": "dist/index.js",

@@ -11,7 +11,7 @@ pip install varpulis-agent-runtime
 ```
 
 Works with **LangChain**, **MCP**, **OpenAI Agents SDK**, or any custom agent.
-Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, 316KB bundle.
+Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, ~1MB bundle.
 
 Powered by the **Varpulis CEP engine** — NFA-based pattern matching with Kleene closure and Zero-suppressed Decision Diagrams (ZDD) for efficient combinatorial matching.
 
@@ -323,6 +323,29 @@ token_velocity:      step-level token tracking with moving average baseline
 
 The `+` operator is **Kleene closure** — it matches one or more repetitions and the ZDD compactly represents all valid event combinations without exponential blowup.
 
+### Custom VPL Patterns
+
+Add your own patterns at runtime using VPL — no Rust code needed:
+
+```python
+runtime.add_patterns_from_vpl("""
+    pattern GoalDrift = SEQ(
+        ToolCall as first,
+        ToolCall+ where name != first.name as drift
+    ) within 60s
+""")
+```
+
+```typescript
+runtime.addPatternsFromVpl(`
+    pattern TokenSpike = SEQ(
+        LlmCall+ where output_tokens > 1000 as spike
+    ) within 30s
+`);
+```
+
+The built-in patterns ship as `.vpl` files in the [`patterns/`](patterns/) directory — readable, auditable, and forkable.
+
 ---
 
 ## API Reference
@@ -334,6 +357,7 @@ The `+` operator is **Kleene closure** — it matches one or more repetitions an
 | `observe(event)` | Push an event, returns detections |
 | `on(patternName, callback)` | Listen for a specific pattern |
 | `onDetection(callback)` | Listen for all detections |
+| `addPatternsFromVpl(source)` | Load custom VPL patterns |
 | `reset()` | Clear all detector state |
 | `eventCount` | Number of events processed |
 
