@@ -794,7 +794,8 @@ dependencies = [
 
 [[package]]
 name = "varpulis-core"
-version = "0.6.3"
+version = "0.6.4"
+source = "git+https://github.com/varpulis/varpulis#a18af41e2946b9a2619aee2fcf6827688d74f9ad"
 dependencies = [
  "chrono",
  "indexmap",
@@ -808,7 +809,8 @@ dependencies = [
 
 [[package]]
 name = "varpulis-parser"
-version = "0.6.3"
+version = "0.6.4"
+source = "git+https://github.com/varpulis/varpulis#a18af41e2946b9a2619aee2fcf6827688d74f9ad"
 dependencies = [
  "logos",
  "miette",
@@ -820,7 +822,8 @@ dependencies = [
 
 [[package]]
 name = "varpulis-sase"
-version = "0.6.3"
+version = "0.6.4"
+source = "git+https://github.com/varpulis/varpulis#a18af41e2946b9a2619aee2fcf6827688d74f9ad"
 dependencies = [
  "chrono",
  "rustc-hash",
@@ -830,7 +833,8 @@ dependencies = [
 
 [[package]]
 name = "varpulis-zdd"
-version = "0.6.3"
+version = "0.6.4"
+source = "git+https://github.com/varpulis/varpulis#a18af41e2946b9a2619aee2fcf6827688d74f9ad"
 dependencies = [
  "rustc-hash",
 ]

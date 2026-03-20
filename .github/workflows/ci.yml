@@ -15,25 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/checkout@v5
-        with:
-          repository: varpulis/cep
-          path: ../cep
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-
       - uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
         run: cargo fmt --all --check
-
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
-
       - name: Run tests
         run: cargo test
 
@@ -42,28 +32,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/checkout@v5
-        with:
-          repository: varpulis/cep
-          path: ../cep
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
       - uses: Swatinem/rust-cache@v2
 
       - name: Install wasm-pack
         run: cargo install wasm-pack
-
       - name: Build WASM
         run: wasm-pack build crates/varpulis-agent-wasm --target bundler --out-dir ../../packages/npm/wasm
-
       - name: Remove wasm-pack gitignore
         run: rm -f packages/npm/wasm/.gitignore
-
       - name: Check bundle size
         run: |
           SIZE=$(du -k packages/npm/wasm/varpulis_agent_wasm_bg.wasm | cut -f1)
@@ -72,7 +51,6 @@ jobs:
             echo "::error::WASM bundle exceeds 2MB target (${SIZE}KB)"
             exit 1
           fi
-
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v5
         with:
@@ -85,25 +63,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-
       - name: Download WASM artifact
         uses: actions/download-artifact@v5
         with:
           name: wasm-bundle
           path: packages/npm/wasm/
-
       - name: Install dependencies
         working-directory: packages/npm
         run: npm ci
-
       - name: Type check
         working-directory: packages/npm
         run: npx tsc --noEmit
-
       - name: Unit tests
         working-directory: packages/npm
         run: npx vitest run
@@ -114,25 +87,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-
       - name: Download WASM artifact
         uses: actions/download-artifact@v5
         with:
           name: wasm-bundle
           path: packages/npm/wasm/
-
       - name: Install dependencies
         working-directory: packages/npm
         run: npm ci
-
       - name: Install Playwright browsers
         working-directory: packages/npm
         run: npx playwright install chromium --with-deps
-
       - name: Run E2E tests
         working-directory: packages/npm
         run: npm run test:e2e
@@ -142,31 +110,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/checkout@v5
-        with:
-          repository: varpulis/cep
-          path: ../cep
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: dtolnay/rust-toolchain@stable
-
       - uses: Swatinem/rust-cache@v2
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install maturin
         run: pip install maturin
-
       - name: Create venv and build
         working-directory: packages/python
         run: |
           python -m venv .venv
           source .venv/bin/activate
           maturin develop
-
       - name: Smoke test
         working-directory: packages/python
         run: |
