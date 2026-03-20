@@ -189,7 +189,7 @@ fn expr_to_value(expr: &Expr) -> Option<Value> {
 /// Convert a duration expression (e.g., `10s`, `5m`) to a `Duration`.
 fn expr_to_duration(expr: &Expr) -> Option<Duration> {
     match expr {
-        Expr::Duration(ms) => Some(Duration::from_millis(*ms as u64)),
+        Expr::Duration(ms) => Some(Duration::from_millis(*ms)),
         Expr::Int(n) => Some(Duration::from_secs(*n as u64)),
         _ => None,
     }
