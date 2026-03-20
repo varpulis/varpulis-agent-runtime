@@ -71,9 +71,10 @@ impl AgentRuntime {
             let engine = varpulis_sase::SaseEngine::new(cp.pattern);
             // Generic VPL detector — returns all match results as detections
             let name = cp.name.clone();
-            self.detectors.push(Box::new(
-                crate::pattern::sase_detector::VplDetector::new(name, engine),
-            ));
+            self.detectors
+                .push(Box::new(crate::pattern::sase_detector::VplDetector::new(
+                    name, engine,
+                )));
         }
         Ok(count)
     }

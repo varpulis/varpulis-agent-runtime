@@ -26,10 +26,7 @@ pub fn compile_vpl(source: &str) -> Result<Vec<CompiledPattern>, String> {
 
     for spanned_stmt in &program.statements {
         if let Stmt::PatternDecl {
-            name,
-            expr,
-            within,
-            ..
+            name, expr, within, ..
         } = &spanned_stmt.node
         {
             let within_dur = within.as_ref().and_then(expr_to_duration);
@@ -50,10 +47,7 @@ pub fn compile_vpl(source: &str) -> Result<Vec<CompiledPattern>, String> {
 }
 
 /// Compile a `SasePatternExpr` into a runtime `SasePattern`.
-fn compile_pattern_expr(
-    expr: &SasePatternExpr,
-    within: Option<Duration>,
-) -> Option<SasePattern> {
+fn compile_pattern_expr(expr: &SasePatternExpr, within: Option<Duration>) -> Option<SasePattern> {
     let pattern = match expr {
         SasePatternExpr::Seq(items) => {
             let steps: Vec<SasePattern> = items.iter().map(compile_pattern_item).collect();
@@ -136,8 +130,13 @@ fn expr_to_predicate(expr: &Expr) -> Option<Predicate> {
             }?;
 
             // Cross-event reference: field == alias.field
-            if let (Expr::Ident(field), Expr::Member { expr: ref_expr, member: ref_field }) =
-                (left.as_ref(), right.as_ref())
+            if let (
+                Expr::Ident(field),
+                Expr::Member {
+                    expr: ref_expr,
+                    member: ref_field,
+                },
+            ) = (left.as_ref(), right.as_ref())
             {
                 if let Expr::Ident(ref_alias) = ref_expr.as_ref() {
                     return Some(Predicate::CompareRef {
@@ -234,8 +233,13 @@ mod tests {
             include_str!("../../../patterns/circular_reasoning.vpl"),
         ];
         for (i, source) in files.iter().enumerate() {
-            let patterns = compile_vpl(source).unwrap_or_else(|e| panic!("Pattern {i} failed: {e}"));
-            assert_eq!(patterns.len(), 1, "Pattern {i} should produce exactly 1 pattern");
+            let patterns =
+                compile_vpl(source).unwrap_or_else(|e| panic!("Pattern {i} failed: {e}"));
+            assert_eq!(
+                patterns.len(),
+                1,
+                "Pattern {i} should produce exactly 1 pattern"
+            );
         }
     }
 
