@@ -16,12 +16,15 @@ from varpulis_agent_runtime import VarpulisAgentRuntime, Patterns
 
 app = Flask(__name__)
 
+# Tuned for Claude Code — circular_reasoning disabled (too many false positives
+# from normal Read→Edit→Read→Edit development workflows)
 PATTERN_CONFIG = [
     Patterns.retry_storm(min_repetitions=4, window_seconds=30),
     Patterns.error_spiral(min_error_count=3, window_seconds=60),
     Patterns.stuck_agent(max_steps_without_output=20, max_time_without_output_seconds=300),
     Patterns.budget_runaway(max_cost_usd=5.00, max_tokens=500_000, window_seconds=300),
-    Patterns.circular_reasoning(),
+    # circular_reasoning intentionally omitted — Read→Edit and Bash→Edit cycles
+    # are normal coding patterns, not agent misbehavior
 ]
 
 # Per-session runtimes and logs
@@ -64,7 +67,6 @@ def receive_event():
     is_post = "tool_response" in data and data["tool_response"] is not None
 
     if not is_post:
-        # PreToolUse → ToolCall
         event_entry = {"time": now, "type": "ToolCall", "tool": tool_name, "session": sid, "input_preview": str(tool_input)[:100]}
         sess["events"].append(event_entry)
         dets = runtime.observe(
@@ -77,7 +79,6 @@ def receive_event():
             },
         )
     else:
-        # PostToolUse → ToolResult
         is_error = not tool_response.get("success", True) if isinstance(tool_response, dict) else False
         event_entry = {"time": now, "type": "ToolResult", "tool": tool_name, "session": sid, "success": not is_error}
         sess["events"].append(event_entry)
@@ -101,29 +102,22 @@ def receive_event():
 
     # Build feedback for Claude Code
     response = {}
-
-    # Collect all detection messages as context
     feedback_lines = []
     for d in dets:
         feedback_lines.append(f"[{d['severity'].upper()}] {d['pattern_name']}: {d['message']}")
 
     advice = PATTERN_ADVICE.get(dets[0]["pattern_name"], "Consider changing your approach.")
     feedback_lines.append(f"Suggestion: {advice}")
-
     context = "VARPULIS CEP DETECTION: " + " | ".join(feedback_lines)
 
-    # For PreToolUse: inject context and optionally block
     if not is_post:
         response["hookSpecificOutput"] = {
             "hookEventName": "PreToolUse",
             "additionalContext": context,
         }
-        # If any detection has action=kill, block the tool call
         if any(d.get("action") == "kill" for d in dets):
             response["hookSpecificOutput"]["permissionDecision"] = "deny"
             response["hookSpecificOutput"]["permissionDecisionReason"] = dets[0]["message"]
-
-    # For PostToolUse: inject context as feedback
     if is_post:
         response["hookSpecificOutput"] = {
             "hookEventName": "PostToolUse",
@@ -133,7 +127,6 @@ def receive_event():
     return jsonify(response)
 
 
-# Actionable advice per pattern — injected into Claude's context
 PATTERN_ADVICE = {
     "retry_storm": "You are repeating the same tool call with identical parameters. Stop and try a different approach, different parameters, or a different tool.",
     "error_spiral": "Multiple tool calls are failing. Pause, analyze the errors, and address the root cause before retrying.",
@@ -152,7 +145,10 @@ DASHBOARD_HTML = """
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, sans-serif; background: #0f0f23; color: #cdd6f4; padding: 1.5rem; }
   h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #89b4fa; }
-  .subtitle { color: #6c7086; margin-bottom: 1.5rem; font-size: 0.9rem; }
+  .subtitle { color: #6c7086; margin-bottom: 1rem; font-size: 0.9rem; }
+  .filters { margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; }
+  .filters label { color: #6c7086; font-size: 0.85rem; }
+  .filters select { background: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
   .card { background: #1e1e2e; border-radius: 8px; padding: 1rem; border: 1px solid #313244; }
   .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c7086; margin-bottom: 0.75rem; }
@@ -175,11 +171,19 @@ DASHBOARD_HTML = """
   .full { grid-column: 1 / -1; }
   .scroll { max-height: 400px; overflow-y: auto; }
   #status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a6e3a1; margin-right: 6px; }
+  .session-btn { cursor: pointer; color: #89b4fa; text-decoration: underline; background: none; border: none; font: inherit; }
 </style>
 </head>
 <body>
   <h1><span id="status"></span>Varpulis Monitor — Claude Code</h1>
   <p class="subtitle">Real-time CEP-powered behavioral monitoring (auto-refreshes every 2s)</p>
+
+  <div class="filters">
+    <label>Filter by session:</label>
+    <select id="sessionFilter" onchange="refresh()">
+      <option value="all">All sessions</option>
+    </select>
+  </div>
 
   <div class="grid">
     <div class="card">
@@ -196,7 +200,7 @@ DASHBOARD_HTML = """
     <div class="card full">
       <h2>Sessions</h2>
       <table>
-        <thead><tr><th>Session ID</th><th>Started</th><th>Events</th><th>Detections</th></tr></thead>
+        <thead><tr><th>Session ID</th><th>Started</th><th>Events</th><th>Detections</th><th></th></tr></thead>
         <tbody id="sessions"></tbody>
       </table>
     </div>
@@ -227,9 +231,18 @@ DASHBOARD_HTML = """
   </div>
 
   <script>
+    let lastSessionList = '';
+
+    function filterSession(sid) {
+      document.getElementById('sessionFilter').value = sid;
+      refresh();
+    }
+
     async function refresh() {
       try {
-        const res = await fetch('/api/dashboard');
+        const filter = document.getElementById('sessionFilter').value;
+        const url = filter === 'all' ? '/api/dashboard' : `/api/dashboard?session=${filter}`;
+        const res = await fetch(url);
         const data = await res.json();
 
         document.getElementById('eventCount').textContent = data.event_count;
@@ -237,13 +250,24 @@ DASHBOARD_HTML = """
         dc.textContent = data.detection_count;
         dc.className = 'stat ' + (data.detection_count > 0 ? 'red' : 'green');
 
+        // Update session filter dropdown (preserve selection)
+        const newList = JSON.stringify(data.sessions.map(s => s.id));
+        if (newList !== lastSessionList) {
+          lastSessionList = newList;
+          const sel = document.getElementById('sessionFilter');
+          const cur = sel.value;
+          sel.innerHTML = '<option value="all">All sessions</option>' +
+            data.sessions.map(s => `<option value="${s.id}">${s.id} (${s.events} events)</option>`).join('');
+          sel.value = cur;
+        }
+
         const sTbody = document.getElementById('sessions');
         sTbody.innerHTML = (data.sessions || []).map(s =>
-          `<tr><td><code>${s.id}</code></td><td>${s.started}</td><td>${s.events}</td><td class="${s.detections > 0 ? 'stat red' : ''}" style="font-size:inherit">${s.detections}</td></tr>`
+          `<tr><td><code>${s.id}</code></td><td>${s.started}</td><td>${s.events}</td><td class="${s.detections > 0 ? 'stat red' : ''}" style="font-size:inherit">${s.detections}</td><td><button class="session-btn" onclick="filterSession('${s.id}')">filter</button></td></tr>`
         ).join('');
 
         const dTbody = document.getElementById('detections');
-        dTbody.innerHTML = data.detections.reverse().map(d =>
+        dTbody.innerHTML = data.detections.slice().reverse().map(d =>
           `<tr><td>${d.time}</td><td><code>${d.session || '?'}</code></td><td>${d.pattern_name}</td><td><span class="badge ${d.severity}">${d.severity}</span></td><td><span class="badge ${d.action}">${d.action}</span></td><td>${d.message}</td></tr>`
         ).join('');
 
@@ -268,7 +292,8 @@ def dashboard():
 
 @app.route("/api/dashboard")
 def api_dashboard():
-    # Aggregate across all sessions
+    session_filter = request.args.get("session", "all")
+
     all_events = []
     all_detections = []
     total_event_count = 0
@@ -276,9 +301,6 @@ def api_dashboard():
 
     for sid, sess in sessions.items():
         short_id = sid[:8] if sid else "unknown"
-        all_events.extend(sess["events"])
-        all_detections.extend(sess["detections"])
-        total_event_count += sess["runtime"].event_count
         session_summaries.append({
             "id": short_id,
             "started": sess["started"],
@@ -286,7 +308,11 @@ def api_dashboard():
             "detections": len(sess["detections"]),
         })
 
-    # Sort by time
+        if session_filter == "all" or session_filter == short_id:
+            all_events.extend(sess["events"])
+            all_detections.extend(sess["detections"])
+            total_event_count += sess["runtime"].event_count
+
     all_events.sort(key=lambda e: e["time"])
     all_detections.sort(key=lambda e: e["time"])
 

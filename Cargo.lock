@@ -759,7 +759,7 @@ checksum = "7264e107f553ccae879d21fbea1d6724ac785e8c3bfc762137959b5802826ef3"
 
 [[package]]
 name = "varpulis-agent-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "varpulis-agent-python"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "pyo3",
  "serde",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "varpulis-agent-wasm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
