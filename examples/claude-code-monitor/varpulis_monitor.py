@@ -38,8 +38,36 @@ def get_session(session_id):
             "events": [],
             "detections": [],
             "started": time.strftime("%H:%M:%S"),
+            "label": None,  # derived from first meaningful event
         }
     return sessions[session_id]
+
+
+def derive_session_label(sess, tool_name, tool_input):
+    """Try to derive a friendly label from early tool calls."""
+    if sess["label"]:
+        return
+    ti = tool_input if isinstance(tool_input, dict) else {}
+    # Use file path from Read/Write/Edit
+    path = ti.get("file_path", "") or ti.get("path", "")
+    if path:
+        # Extract project dir: /home/user/my-project/src/foo.rs → my-project
+        parts = path.replace("\\", "/").split("/")
+        for i, p in enumerate(parts):
+            if p in ("home", "Users", "tmp", "var", ""):
+                continue
+            if i + 1 < len(parts) and parts[i + 1] not in ("", "home", "Users"):
+                sess["label"] = f"{parts[i+1]}" if parts[i] in ("home", "Users") and i + 2 < len(parts) else parts[i]
+                return
+    # Use command cwd or first word from Bash
+    cmd = ti.get("command", "")
+    if cmd and tool_name == "Bash":
+        sess["label"] = cmd.split()[0][:20] if cmd.split() else None
+        return
+    # Use glob/grep pattern
+    pattern = ti.get("pattern", "")
+    if pattern:
+        sess["label"] = f"search:{pattern[:20]}"
 
 
 def _hash(params):
@@ -65,6 +93,8 @@ def receive_event():
 
     # Determine if this is pre or post based on presence of tool_response
     is_post = "tool_response" in data and data["tool_response"] is not None
+
+    derive_session_label(sess, tool_name, tool_input)
 
     if not is_post:
         event_entry = {"time": now, "type": "ToolCall", "tool": tool_name, "session": sid, "input_preview": str(tool_input)[:100]}
@@ -200,7 +230,7 @@ DASHBOARD_HTML = """
     <div class="card full">
       <h2>Sessions</h2>
       <table>
-        <thead><tr><th>Session ID</th><th>Started</th><th>Events</th><th>Detections</th><th></th></tr></thead>
+        <thead><tr><th>Session ID</th><th>Label</th><th>Started</th><th>Events</th><th>Detections</th><th></th></tr></thead>
         <tbody id="sessions"></tbody>
       </table>
     </div>
@@ -257,13 +287,13 @@ DASHBOARD_HTML = """
           const sel = document.getElementById('sessionFilter');
           const cur = sel.value;
           sel.innerHTML = '<option value="all">All sessions</option>' +
-            data.sessions.map(s => `<option value="${s.id}">${s.id} (${s.events} events)</option>`).join('');
+            data.sessions.map(s => `<option value="${s.id}">${s.label || s.id} (${s.events} events)</option>`).join('');
           sel.value = cur;
         }
 
         const sTbody = document.getElementById('sessions');
         sTbody.innerHTML = (data.sessions || []).map(s =>
-          `<tr><td><code>${s.id}</code></td><td>${s.started}</td><td>${s.events}</td><td class="${s.detections > 0 ? 'stat red' : ''}" style="font-size:inherit">${s.detections}</td><td><button class="session-btn" onclick="filterSession('${s.id}')">filter</button></td></tr>`
+          `<tr><td><code>${s.id}</code></td><td>${s.label || ''}</td><td>${s.started}</td><td>${s.events}</td><td class="${s.detections > 0 ? 'stat red' : ''}" style="font-size:inherit">${s.detections}</td><td><button class="session-btn" onclick="filterSession('${s.id}')">filter</button></td></tr>`
         ).join('');
 
         const dTbody = document.getElementById('detections');
@@ -303,6 +333,7 @@ def api_dashboard():
         short_id = sid[:8] if sid else "unknown"
         session_summaries.append({
             "id": short_id,
+            "label": sess.get("label") or short_id,
             "started": sess["started"],
             "events": sess["runtime"].event_count,
             "detections": len(sess["detections"]),
