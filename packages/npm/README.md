@@ -10,8 +10,10 @@ npm install @varpulis/agent-runtime
 pip install varpulis-agent-runtime
 ```
 
-Works with **LangChain**, **MCP**, **OpenAI Agents SDK**, or any custom agent.
-Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency, ~1MB bundle.
+Works with **LangChain**, **CrewAI**, **MCP**, **OpenAI Agents SDK**, or any **OpenTelemetry**-instrumented agent.
+Runs in-process via WASM (JS) or native extension (Python) — zero infrastructure, sub-millisecond latency.
+
+**[Try the interactive playground](https://demo.varpulis-cep.com/agent-playground/)** — runs entirely in your browser via WebAssembly.
 
 Powered by the **Varpulis CEP engine** — NFA-based pattern matching with Kleene closure and Zero-suppressed Decision Diagrams (ZDD) for efficient combinatorial matching.
 
@@ -35,6 +37,15 @@ These are **temporal patterns** — they only become visible when you look at se
 ---
 
 ## Quick Start
+
+### One-Line Setup (Python)
+
+```python
+import varpulis_agent_runtime
+varpulis_agent_runtime.init()
+# That's it — LangChain, CrewAI, and OpenAI SDK are auto-patched.
+# Your agent now has behavioral guardrails.
+```
 
 ### JavaScript / TypeScript
 
@@ -255,6 +266,27 @@ hooks.onToolEnd('search_api', 'sunny, 22°C');
 hooks.onStepStart(1);
 hooks.onStepEnd(1, true);
 hooks.onLlmUsage(500, 200, 'gpt-4');
+```
+
+### CrewAI (Python)
+
+```python
+from varpulis_agent_runtime.integrations.crewai import VarpulisCrewAIHook
+
+hook = VarpulisCrewAIHook(runtime)
+hook.register()  # registers before/after tool hooks globally
+# Returns False to block tool calls when kill-level patterns are detected
+```
+
+### OpenTelemetry (any OTel-instrumented framework)
+
+```python
+from varpulis_agent_runtime.integrations.opentelemetry import VarpulisSpanProcessor
+from opentelemetry import trace
+
+processor = VarpulisSpanProcessor(runtime)
+trace.get_tracer_provider().add_span_processor(processor)
+# Works with Phoenix, Pydantic AI, Vercel AI SDK, or any GenAI OTel spans
 ```
 
 ### Any Custom Agent
