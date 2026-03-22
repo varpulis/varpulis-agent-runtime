@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Varpulis Playground — Interactive Agent Pattern Detection</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-2: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb33;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --orange: #db6d28;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header .brand svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    header h1 span {
+      color: var(--accent);
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .stats-bar strong {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .toolbar select,
+    .toolbar button {
+      font-family: var(--sans);
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .toolbar select:hover,
+    .toolbar button:hover {
+      border-color: var(--accent);
+    }
+
+    .toolbar button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .toolbar button.primary:hover {
+      background: #4c96e8;
+    }
+
+    .toolbar button.danger {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .toolbar .sep {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+
+    /* Main layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel:first-child {
+      border-right: 1px solid var(--border);
+    }
+
+    .panel-header {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Event buttons */
+    .event-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .event-buttons button {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .event-buttons button:hover {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Pattern checkboxes */
+    .pattern-config {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .pattern-config h3 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .pattern-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+
+    .pattern-list label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--text);
+      cursor: pointer;
+      padding: 3px 4px;
+      border-radius: 4px;
+      transition: background 0.1s;
+    }
+
+    .pattern-list label:hover {
+      background: var(--surface-2);
+    }
+
+    .pattern-list input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+
+    /* Custom JSON editor */
+    .json-editor {
+      position: relative;
+    }
+
+    .json-editor textarea {
+      width: 100%;
+      min-height: 100px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .json-editor textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .json-editor button {
+      margin-top: 6px;
+      font-family: var(--sans);
+      font-size: 12px;
+      padding: 5px 14px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .json-editor button:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* Event stream log */
+    .event-log {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .event-entry {
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: var(--surface);
+      border-left: 3px solid var(--border);
+      word-break: break-all;
+    }
+
+    .event-entry .ts {
+      color: var(--text-muted);
+    }
+
+    .event-entry .type {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Detection entries */
+    .detection-entry {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      border-left: 4px solid;
+      animation: slideIn 0.2s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .detection-entry.warning {
+      background: #d2992215;
+      border-color: var(--yellow);
+    }
+
+    .detection-entry.error {
+      background: #f8514915;
+      border-color: var(--red);
+    }
+
+    .detection-entry.critical {
+      background: #f8514925;
+      border-color: var(--red);
+    }
+
+    .detection-entry.info {
+      background: #58a6ff15;
+      border-color: var(--accent);
+    }
+
+    .detection-entry .det-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .detection-entry .det-name {
+      font-weight: 700;
+    }
+
+    .detection-entry .det-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .detection-entry.warning .det-badge {
+      background: var(--yellow);
+      color: #000;
+    }
+
+    .detection-entry.error .det-badge,
+    .detection-entry.critical .det-badge {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .detection-entry.info .det-badge {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .detection-entry .det-message {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .detection-entry .det-action {
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .detection-entry .det-action .kill {
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .empty-state svg {
+      opacity: 0.3;
+    }
+
+    /* Footer */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 100;
+    }
+
+    #loading-overlay .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading-overlay p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    #loading-overlay.error p {
+      color: var(--red);
+    }
+
+    #loading-overlay.loaded {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    /* Scrollbar styling */
+    .panel-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .panel-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .panel-body::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .panel:first-child {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        max-height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <p>Loading Varpulis WASM engine...</p>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="28" height="28" rx="6" fill="#58a6ff" fill-opacity="0.15"/>
+        <path d="M7 14L11 10L14 13L17 9L21 14" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 19L11 15L14 18L17 14L21 19" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+      </svg>
+      <h1>Varpulis <span>Playground</span></h1>
+    </div>
+    <div class="stats-bar">
+      <span>Events: <strong id="stat-events">0</strong></span>
+      <span>Detections: <strong id="stat-detections">0</strong></span>
+      <span id="wasm-status">WASM: loading...</span>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <label for="scenario-select">Scenario</label>
+    <select id="scenario-select">
+      <option value="">-- Choose preset --</option>
+      <option value="retry_storm">Retry Storm</option>
+      <option value="error_spiral">Error Spiral</option>
+      <option value="stuck_agent">Stuck Agent</option>
+      <option value="budget_runaway">Budget Runaway</option>
+    </select>
+    <button class="primary" id="btn-run-scenario">Run Scenario</button>
+    <div class="sep"></div>
+    <button id="btn-reset" class="danger">Reset</button>
+  </div>
+
+  <!-- Main panels -->
+  <main>
+    <!-- Left panel: Event Stream -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Event Stream</span>
+        <span id="event-count-label" style="font-weight: normal; font-size: 11px; text-transform: none;"></span>
+      </div>
+      <div class="panel-body">
+        <!-- Inject preset events -->
+        <div class="event-buttons">
+          <button data-event="ToolCall">+ ToolCall</button>
+          <button data-event="ToolResult">+ ToolResult</button>
+          <button data-event="LlmCall">+ LlmCall</button>
+          <button data-event="StepEnd">+ StepEnd</button>
+          <button data-event="FinalAnswer">+ FinalAnswer</button>
+        </div>
+
+        <!-- Pattern checkboxes -->
+        <div class="pattern-config">
+          <h3>Active Patterns</h3>
+          <div class="pattern-list">
+            <label><input type="checkbox" data-pattern="retry_storm" checked> retry_storm</label>
+            <label><input type="checkbox" data-pattern="stuck_agent" checked> stuck_agent</label>
+            <label><input type="checkbox" data-pattern="error_spiral" checked> error_spiral</label>
+            <label><input type="checkbox" data-pattern="budget_runaway" checked> budget_runaway</label>
+            <label><input type="checkbox" data-pattern="circular_reasoning" checked> circular_reasoning</label>
+            <label><input type="checkbox" data-pattern="token_velocity" checked> token_velocity</label>
+          </div>
+        </div>
+
+        <!-- Custom JSON editor -->
+        <div class="json-editor">
+          <textarea id="custom-json" spellcheck="false" placeholder='Paste custom event JSON, e.g.:
+{
+  "timestamp": 1000,
+  "event_type": {
+    "type": "ToolCall",
+    "name": "search",
+    "params_hash": 42,
+    "duration_ms": 100
+  }
+}'></textarea>
+          <button id="btn-send-custom">Send Custom Event</button>
+        </div>
+
+        <!-- Event log -->
+        <div class="event-log" id="event-log" style="margin-top: 12px;"></div>
+      </div>
+    </div>
+
+    <!-- Right panel: Detections -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Detections</span>
+        <span id="detection-count-label" style="font-weight: normal; font-size: 11px; text-transform: none;"></span>
+      </div>
+      <div class="panel-body">
+        <div id="detection-log">
+          <div class="empty-state" id="empty-detections">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"/>
+              <path d="M9 12L11 14L15 10"/>
+            </svg>
+            <span>No detections yet</span>
+            <span style="font-size: 11px;">Inject events or run a scenario to trigger pattern detections</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    Powered by <a href="https://github.com/varpulis/varpulis-agent-runtime">Varpulis CEP Engine</a> &mdash; runs entirely in your browser via WebAssembly
+  </footer>
+
+  <script type="module">
+    // -------------------------------------------------------
+    // Varpulis Playground - Inline JS (no build step)
+    // -------------------------------------------------------
+
+    // -- State --
+    let wasm = null;           // WasmAgentRuntime instance
+    let eventCount = 0;
+    let detectionCount = 0;
+    let tsCounter = Date.now(); // auto-incrementing timestamp
+
+    // Simple hash function for params (mirrors hashParams from the npm package)
+    function hashParams(obj) {
+      const s = JSON.stringify(obj);
+      let h = 0;
+      for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+      }
+      return h >>> 0;
+    }
+
+    // -- DOM refs --
+    const overlay = document.getElementById('loading-overlay');
+    const statEvents = document.getElementById('stat-events');
+    const statDetections = document.getElementById('stat-detections');
+    const wasmStatus = document.getElementById('wasm-status');
+    const eventLog = document.getElementById('event-log');
+    const detectionLog = document.getElementById('detection-log');
+    const emptyDetections = document.getElementById('empty-detections');
+    const scenarioSelect = document.getElementById('scenario-select');
+    const customJson = document.getElementById('custom-json');
+
+    // -- WASM init --
+    async function initWasm() {
+      try {
+        // Load the WASM glue from a relative path (same layout as wasm-pack output)
+        const { default: init, WasmAgentRuntime } =
+          await import('./wasm/varpulis_agent_wasm.js');
+
+        // If the module exports an init function (wasm-pack web target), call it
+        if (typeof init === 'function') {
+          await init();
+        }
+
+        wasm = new WasmAgentRuntime();
+        configurePatterns();
+
+        wasmStatus.textContent = 'WASM: ready';
+        wasmStatus.style.color = '#3fb950';
+        overlay.classList.add('loaded');
+      } catch (err) {
+        console.error('WASM load failed:', err);
+        wasmStatus.textContent = 'WASM: failed';
+        wasmStatus.style.color = '#f85149';
+        overlay.querySelector('p').textContent =
+          `Failed to load WASM: ${err.message}. Make sure ./wasm/ contains the built WASM files.`;
+        overlay.classList.add('error');
+        overlay.querySelector('.spinner').style.display = 'none';
+      }
+    }
+
+    // -- Configure patterns based on checkboxes --
+    function configurePatterns() {
+      if (!wasm) return;
+
+      // Create a fresh runtime (no way to remove detectors, so re-create)
+      const { WasmAgentRuntime } = wasmModule || {};
+      // We'll just rebuild from scratch by creating a new instance
+      // But we don't have the constructor easily... so we'll use a workaround:
+      // Store the module for re-init
+    }
+
+    // Since we can't dynamically remove detectors from the WASM runtime,
+    // we rebuild it whenever pattern config changes.
+    let wasmModule = null;
+
+    async function rebuildRuntime() {
+      try {
+        if (!wasmModule) return;
+        const { WasmAgentRuntime } = wasmModule;
+        wasm = new WasmAgentRuntime();
+        wasm.setCooldownMs(BigInt(0));
+
+        const checks = document.querySelectorAll('.pattern-list input[type="checkbox"]');
+        for (const cb of checks) {
+          if (!cb.checked) continue;
+          const p = cb.dataset.pattern;
+          switch (p) {
+            case 'retry_storm':
+              wasm.addRetryStorm(JSON.stringify({ min_repetitions: 3, kill_threshold: 6 }));
+              break;
+            case 'stuck_agent':
+              wasm.addStuckAgent(JSON.stringify({ max_steps_without_output: 4 }));
+              break;
+            case 'error_spiral':
+              wasm.addErrorSpiral(JSON.stringify({ min_error_count: 3, window_seconds: 30 }));
+              break;
+            case 'budget_runaway':
+              wasm.addBudgetRunaway(JSON.stringify({ max_cost_usd: 0.10, window_seconds: 60 }));
+              break;
+            case 'circular_reasoning':
+              wasm.addCircularReasoning(JSON.stringify({}));
+              break;
+            case 'token_velocity':
+              wasm.addTokenVelocity(JSON.stringify({ baseline_window_steps: 3, spike_multiplier: 2.0 }));
+              break;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to rebuild runtime:', err);
+      }
+    }
+
+    async function initWasmModule() {
+      try {
+        wasmModule = await import('./wasm/varpulis_agent_wasm.js');
+
+        // If the module exports an init/default function (wasm-pack web target), call it
+        if (typeof wasmModule.default === 'function') {
+          await wasmModule.default();
+        }
+
+        await rebuildRuntime();
+
+        wasmStatus.textContent = 'WASM: ready';
+        wasmStatus.style.color = '#3fb950';
+        overlay.classList.add('loaded');
+      } catch (err) {
+        console.error('WASM load failed:', err);
+        wasmStatus.textContent = 'WASM: failed';
+        wasmStatus.style.color = '#f85149';
+        overlay.querySelector('p').textContent =
+          `Failed to load WASM: ${err.message}. Make sure ./wasm/ contains the built WASM files.`;
+        overlay.classList.add('error');
+        overlay.querySelector('.spinner').style.display = 'none';
+      }
+    }
+
+    // -- Observe an event --
+    function observe(event) {
+      if (!wasm) {
+        console.warn('WASM not loaded');
+        return;
+      }
+
+      try {
+        const json = JSON.stringify(event);
+        const resultJson = wasm.observe(json);
+        const detections = JSON.parse(resultJson);
+
+        eventCount++;
+        updateStats();
+        appendEventLog(event);
+
+        for (const d of detections) {
+          detectionCount++;
+          appendDetection(d);
+        }
+        updateStats();
+      } catch (err) {
+        console.error('observe() error:', err);
+        appendEventLog(event, true);
+      }
+    }
+
+    // -- UI helpers --
+    function nextTs() {
+      tsCounter += 1000;
+      return tsCounter;
+    }
+
+    function updateStats() {
+      statEvents.textContent = eventCount;
+      statDetections.textContent = detectionCount;
+    }
+
+    function appendEventLog(event, isError) {
+      const div = document.createElement('div');
+      div.className = 'event-entry';
+      if (isError) div.style.borderColor = '#f85149';
+
+      const et = event.event_type;
+      const ts = new Date(event.timestamp).toISOString().slice(11, 23);
+      let summary = et.type;
+      switch (et.type) {
+        case 'ToolCall':
+          summary = `ToolCall(${et.name}, hash=${et.params_hash})`;
+          break;
+        case 'ToolResult':
+          summary = `ToolResult(${et.name}, ${et.success ? 'ok' : 'FAIL'})`;
+          break;
+        case 'LlmCall':
+          summary = `LlmCall(${et.model}, ${et.input_tokens}+${et.output_tokens} tok, $${(et.cost_usd || 0).toFixed(3)})`;
+          break;
+        case 'StepEnd':
+          summary = `StepEnd(#${et.step_number}, output=${et.produced_output})`;
+          break;
+        case 'FinalAnswer':
+          summary = `FinalAnswer(len=${et.content_length})`;
+          break;
+      }
+
+      div.innerHTML = `<span class="ts">${ts}</span> <span class="type">${summary}</span>`;
+      eventLog.appendChild(div);
+      eventLog.scrollTop = eventLog.scrollHeight;
+    }
+
+    function appendDetection(d) {
+      if (emptyDetections) {
+        emptyDetections.style.display = 'none';
+      }
+
+      const div = document.createElement('div');
+      div.className = `detection-entry ${d.severity}`;
+
+      const actionLabel = d.action === 'kill'
+        ? '<span class="kill">KILL</span>'
+        : d.action;
+
+      div.innerHTML = `
+        <div class="det-header">
+          <span class="det-name">${d.pattern_name}</span>
+          <span class="det-badge">${d.severity}</span>
+        </div>
+        <div class="det-message">${escapeHtml(d.message)}</div>
+        <div class="det-action">Action: ${actionLabel}</div>
+      `;
+
+      detectionLog.appendChild(div);
+      detectionLog.scrollTop = detectionLog.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      const el = document.createElement('span');
+      el.textContent = s;
+      return el.innerHTML;
+    }
+
+    function resetAll() {
+      if (wasm) wasm.reset();
+      eventCount = 0;
+      detectionCount = 0;
+      tsCounter = Date.now();
+      updateStats();
+      eventLog.innerHTML = '';
+      detectionLog.innerHTML = '';
+      if (emptyDetections) {
+        detectionLog.appendChild(emptyDetections);
+        emptyDetections.style.display = '';
+      }
+      // Rebuild runtime so patterns are reconfigured from checkboxes
+      rebuildRuntime();
+    }
+
+    // -- Preset event factories --
+    let stepCounter = 0;
+
+    function makeToolCall() {
+      const names = ['search', 'read_file', 'write_file', 'execute', 'web_fetch'];
+      const name = names[Math.floor(Math.random() * names.length)];
+      return {
+        timestamp: nextTs(),
+        event_type: {
+          type: 'ToolCall',
+          name,
+          params_hash: hashParams({ query: 'test' }),
+          duration_ms: 50 + Math.floor(Math.random() * 200),
+        },
+      };
+    }
+
+    function makeToolResult() {
+      const names = ['search', 'read_file', 'write_file'];
+      return {
+        timestamp: nextTs(),
+        event_type: {
+          type: 'ToolResult',
+          name: names[Math.floor(Math.random() * names.length)],
+          success: Math.random() > 0.3,
+        },
+      };
+    }
+
+    function makeLlmCall() {
+      return {
+        timestamp: nextTs(),
+        event_type: {
+          type: 'LlmCall',
+          model: 'gpt-4',
+          input_tokens: 200 + Math.floor(Math.random() * 800),
+          output_tokens: 100 + Math.floor(Math.random() * 400),
+          cost_usd: 0.005 + Math.random() * 0.02,
+        },
+      };
+    }
+
+    function makeStepEnd() {
+      stepCounter++;
+      return {
+        timestamp: nextTs(),
+        event_type: {
+          type: 'StepEnd',
+          step_number: stepCounter,
+          produced_output: Math.random() > 0.5,
+        },
+      };
+    }
+
+    function makeFinalAnswer() {
+      return {
+        timestamp: nextTs(),
+        event_type: {
+          type: 'FinalAnswer',
+          content_length: 100 + Math.floor(Math.random() * 2000),
+        },
+      };
+    }
+
+    // -- Scenarios --
+    function runScenario(name) {
+      resetAll();
+
+      // Small delay between events for visual effect
+      let events = [];
+
+      switch (name) {
+        case 'retry_storm': {
+          // Same tool called repeatedly with same params
+          const ph = hashParams({ query: 'weather in London' });
+          for (let i = 0; i < 8; i++) {
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'ToolCall',
+                name: 'search',
+                params_hash: ph,
+                duration_ms: 100,
+              },
+            });
+          }
+          break;
+        }
+
+        case 'error_spiral': {
+          // Successive tool failures
+          for (let i = 0; i < 6; i++) {
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'ToolResult',
+                name: 'web_fetch',
+                success: false,
+                error: `HTTP ${500 + i}: Server error`,
+              },
+            });
+          }
+          break;
+        }
+
+        case 'stuck_agent': {
+          // Many steps without producing output
+          for (let i = 1; i <= 6; i++) {
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'StepEnd',
+                step_number: i,
+                produced_output: false,
+              },
+            });
+          }
+          break;
+        }
+
+        case 'budget_runaway': {
+          // Expensive LLM calls blowing through budget
+          for (let i = 0; i < 12; i++) {
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'LlmCall',
+                model: 'gpt-4-turbo',
+                input_tokens: 2000 + i * 500,
+                output_tokens: 800 + i * 200,
+                cost_usd: 0.015,
+              },
+            });
+          }
+          break;
+        }
+
+        default:
+          return;
+      }
+
+      // Animate events with delay
+      let idx = 0;
+      function sendNext() {
+        if (idx >= events.length) return;
+        observe(events[idx]);
+        idx++;
+        setTimeout(sendNext, 120);
+      }
+      sendNext();
+    }
+
+    // -- Event listeners --
+
+    // Inject preset events
+    document.querySelectorAll('.event-buttons button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.event;
+        switch (type) {
+          case 'ToolCall': observe(makeToolCall()); break;
+          case 'ToolResult': observe(makeToolResult()); break;
+          case 'LlmCall': observe(makeLlmCall()); break;
+          case 'StepEnd': observe(makeStepEnd()); break;
+          case 'FinalAnswer': observe(makeFinalAnswer()); break;
+        }
+      });
+    });
+
+    // Send custom JSON
+    document.getElementById('btn-send-custom').addEventListener('click', () => {
+      const text = customJson.value.trim();
+      if (!text) return;
+      try {
+        const event = JSON.parse(text);
+        if (!event.timestamp) event.timestamp = nextTs();
+        observe(event);
+      } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+      }
+    });
+
+    // Run scenario
+    document.getElementById('btn-run-scenario').addEventListener('click', () => {
+      const val = scenarioSelect.value;
+      if (!val) {
+        alert('Select a scenario first');
+        return;
+      }
+      runScenario(val);
+    });
+
+    // Reset
+    document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+    // Pattern checkbox changes
+    document.querySelectorAll('.pattern-list input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        resetAll();
+      });
+    });
+
+    // -- Init --
+    initWasmModule();
+  </script>
+</body>
+</html>

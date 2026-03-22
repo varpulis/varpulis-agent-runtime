@@ -9,7 +9,7 @@ description = "WASM bindings for Varpulis Agent Runtime"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-varpulis-agent-core = { path = "../varpulis-agent-core" }
+varpulis-agent-core = { path = "../varpulis-agent-core", features = ["vpl"] }
 wasm-bindgen = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

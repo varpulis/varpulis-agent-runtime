@@ -92,6 +92,31 @@ def _patch_langchain(runtime: VarpulisAgentRuntime, *, verbose: bool) -> bool:
     return True
 
 
+def _patch_crewai(runtime: VarpulisAgentRuntime, *, verbose: bool) -> bool:
+    """Attempt to auto-patch CrewAI via before/after tool call hooks.
+
+    Returns True if patching succeeded, False if crewai is not installed.
+    """
+    if "crewai" in _patched_frameworks:
+        _log("CrewAI already patched, skipping", verbose=verbose)
+        return True
+
+    try:
+        import crewai  # noqa: F401
+    except ImportError:
+        _log("crewai not found, skipping CrewAI patching", verbose=verbose)
+        return False
+
+    from varpulis_agent_runtime.integrations.crewai import VarpulisCrewAIHook
+
+    hook = VarpulisCrewAIHook(runtime)
+    hook.register()
+
+    _patched_frameworks.add("crewai")
+    _log("CrewAI patched successfully", verbose=verbose)
+    return True
+
+
 def _patch_openai(runtime: VarpulisAgentRuntime, *, verbose: bool) -> bool:
     """Attempt to auto-patch the OpenAI SDK.
 
@@ -189,6 +214,7 @@ def init(
 
     # Auto-detect and patch frameworks.
     _patch_langchain(runtime, verbose=verbose)
+    _patch_crewai(runtime, verbose=verbose)
     _patch_openai(runtime, verbose=verbose)
 
     _log("init() complete", verbose=verbose)

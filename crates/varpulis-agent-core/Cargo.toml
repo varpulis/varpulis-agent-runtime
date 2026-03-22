@@ -5,11 +5,15 @@ edition.workspace = true
 license.workspace = true
 description = "Real-time behavioral pattern detection for AI agents"
 
+[features]
+default = ["vpl"]
+vpl = ["varpulis-parser"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 varpulis-core = { workspace = true }
 varpulis-sase = { workspace = true }
-varpulis-parser = { workspace = true }
+varpulis-parser = { workspace = true, optional = true }
 chrono = { workspace = true }

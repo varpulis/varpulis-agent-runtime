@@ -125,6 +125,7 @@ impl WasmAgentRuntime {
     }
 
     /// Add patterns from VPL source. Returns the number of patterns added.
+    /// Requires the `vpl` feature on `varpulis-agent-core` (enabled by default).
     #[wasm_bindgen(js_name = "addPatternsFromVpl")]
     pub fn add_patterns_from_vpl(&mut self, vpl_source: &str) -> Result<usize, JsError> {
         self.inner

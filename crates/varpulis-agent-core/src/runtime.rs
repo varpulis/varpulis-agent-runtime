@@ -64,6 +64,7 @@ impl AgentRuntime {
 
     /// Add patterns from VPL source. Each `pattern` declaration in the VPL
     /// becomes a SASE-backed detector. Returns the number of patterns added.
+    #[cfg(feature = "vpl")]
     pub fn add_patterns_from_vpl(&mut self, vpl_source: &str) -> Result<usize, String> {
         let compiled = crate::vpl_compiler::compile_vpl(vpl_source)?;
         let count = compiled.len();
