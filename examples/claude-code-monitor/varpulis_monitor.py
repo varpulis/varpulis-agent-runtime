@@ -99,6 +99,8 @@ def receive_event():
     if not is_post:
         event_entry = {"time": now, "type": "ToolCall", "tool": tool_name, "session": sid, "input_preview": str(tool_input)[:100]}
         sess["events"].append(event_entry)
+        if len(sess["events"]) > 500:
+            sess["events"] = sess["events"][-500:]
         dets = runtime.observe(
             timestamp=ts,
             event_type={
@@ -112,6 +114,8 @@ def receive_event():
         is_error = not tool_response.get("success", True) if isinstance(tool_response, dict) else False
         event_entry = {"time": now, "type": "ToolResult", "tool": tool_name, "session": sid, "success": not is_error}
         sess["events"].append(event_entry)
+        if len(sess["events"]) > 500:
+            sess["events"] = sess["events"][-500:]
         dets = runtime.observe(
             timestamp=ts,
             event_type={
@@ -350,8 +354,8 @@ def api_dashboard():
     return jsonify({
         "event_count": total_event_count,
         "detection_count": len(all_detections),
-        "detections": all_detections[-50:],
-        "events": all_events[-50:],
+        "detections": all_detections[-200:],
+        "events": all_events[-200:],
         "sessions": session_summaries,
     })
 

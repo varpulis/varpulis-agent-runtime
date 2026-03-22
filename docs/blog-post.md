@@ -49,15 +49,35 @@ The Kleene closure is backed by **Zero-suppressed Decision Diagrams (ZDD)** to a
 
 We didn't just build a monitoring library — we built a **feedback loop**.
 
-We wired Varpulis into [Claude Code](https://claude.com/claude-code) (Anthropic's CLI agent) using its native HTTP hook system. The monitor runs as a tiny Flask daemon, receives every tool call, feeds them through the CEP engine, and **injects detections back into the agent's context**.
+We wired Varpulis into [Claude Code](https://claude.com/claude-code) (Anthropic's CLI agent) using its command hook system. The monitor runs as a tiny Flask daemon, receives every tool call, feeds them through the CEP engine, and **injects detections back into the agent's context**.
 
-The setup is three lines of config:
+The setup uses command hooks that pipe event data through `jq` and `curl`:
 
 ```json
 {
   "hooks": {
-    "PreToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "http", "url": "http://localhost:7890/event" }] }]
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook: \"PreToolUse\", tool_name: .tool_name, tool_input: .tool_input, session_id: .session_id}' | curl -s -X POST http://localhost:7890/event -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook: \"PostToolUse\", tool_name: .tool_name, tool_input: .tool_input, tool_response: .tool_response, session_id: .session_id}' | curl -s -X POST http://localhost:7890/event -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }
 ```

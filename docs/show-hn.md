@@ -49,7 +49,7 @@ def handle(detection):
     print(f"Detected: {detection['message']}")
 ```
 
-We tested it on itself — wired into Claude Code via HTTP hooks. The monitor feeds detections back into the agent's context as `additionalContext`, so the agent self-corrects when patterns are detected. During development it caught a real `Edit → Bash → Edit → Bash` circular pattern and injected "break the cycle by trying a different approach" into the agent's next turn. For kill-level detections, it blocks the tool call entirely via `permissionDecision: "deny"`.
+We tested it on itself — wired into Claude Code via command hooks. The monitor feeds detections back into the agent's context as `additionalContext`, so the agent self-corrects when patterns are detected. During development it caught a real `Edit → Bash → Edit → Bash` circular pattern and injected "break the cycle by trying a different approach" into the agent's next turn. For kill-level detections, it blocks the tool call entirely via `permissionDecision: "deny"`.
 
 Built with Rust, wasm-bindgen, PyO3. 103 tests (61 Rust unit, 18 TS unit, 24 Playwright e2e running WASM in Chromium). Apache 2.0.
 

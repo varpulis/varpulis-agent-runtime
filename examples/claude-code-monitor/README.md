@@ -34,9 +34,9 @@ Add this to your `~/.claude/settings.json` (or `.claude/settings.json` in your p
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "http://localhost:7890/event",
-            "timeout": 3
+            "type": "command",
+            "command": "jq -c '{hook: \"PreToolUse\", tool_name: .tool_name, tool_input: .tool_input, session_id: .session_id}' | curl -s -X POST http://localhost:7890/event -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
           }
         ]
       }
@@ -45,9 +45,9 @@ Add this to your `~/.claude/settings.json` (or `.claude/settings.json` in your p
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "http://localhost:7890/event",
-            "timeout": 3
+            "type": "command",
+            "command": "jq -c '{hook: \"PostToolUse\", tool_name: .tool_name, tool_input: .tool_input, tool_response: .tool_response, session_id: .session_id}' | curl -s -X POST http://localhost:7890/event -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
           }
         ]
       }
@@ -56,7 +56,7 @@ Add this to your `~/.claude/settings.json` (or `.claude/settings.json` in your p
 }
 ```
 
-This uses Claude Code's native HTTP hook support — no shell scripts needed.
+This uses Claude Code's command hooks to pipe tool call data through `jq` and `curl` to the monitor.
 
 ### 4. Use Claude Code normally
 
@@ -135,7 +135,7 @@ The agent monitors itself and self-corrects based on CEP pattern detections.
 ## Architecture
 
 ```
-Claude Code ──HTTP hooks──▶ Varpulis Monitor (Flask + CEP engine)
+Claude Code ──command hooks──▶ Varpulis Monitor (Flask + CEP engine)
      ▲                              │
      │                              ├── /event   (receives + responds with feedback)
      │                              ├── /         (web dashboard)
