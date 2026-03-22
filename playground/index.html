@@ -551,6 +551,12 @@
     <button id="btn-reset" class="danger">Reset</button>
   </div>
 
+  <!-- Scenario description -->
+  <div id="scenario-desc" style="padding: 0.6rem 1.2rem; background: #161b22; border-bottom: 1px solid #30363d; font-size: 0.85rem; color: #8b949e; display: none;">
+    <strong id="scenario-title" style="color: #c9d1d9;"></strong>
+    <span id="scenario-text"></span>
+  </div>
+
   <!-- Main panels -->
   <main>
     <!-- Left panel: Event Stream -->
@@ -947,24 +953,63 @@
     }
 
     // -- Scenarios --
+    const SCENARIO_INFO = {
+      retry_storm: {
+        title: 'Retry Storm',
+        desc: 'An agent asks "What is the weather in London?" and calls the search tool. The API returns a rate-limit error (429), but the LLM keeps regenerating the exact same tool call with identical parameters. Varpulis detects the repeating sequence using Kleene+ pattern matching: SEQ(ToolCall, ToolCall+ WHERE same name & params_hash).',
+      },
+      error_spiral: {
+        title: 'Error Spiral',
+        desc: 'An agent tries to fetch data from an external API that is experiencing an outage. Each attempt uses a different reformulation, but they all fail with server errors (500, 502, 503...). Individually each retry looks reasonable — the spiral only becomes visible across the sequence. Varpulis captures all failures with: ToolResult{success=false}+ WITHIN 30s.',
+      },
+      stuck_agent: {
+        title: 'Stuck Agent',
+        desc: 'An agent is asked to "plan a trip to Japan" and enters a reasoning loop — calling tools, reading results, thinking, calling more tools — but never producing an answer. After many steps of StepEnd{produced_output=false}, Varpulis detects the agent is stuck. The pattern uses Kleene+ with FinalAnswer negation to reset when the agent does produce output.',
+      },
+      budget_runaway: {
+        title: 'Budget Runaway',
+        desc: 'An agent makes increasingly expensive LLM calls — each prompt grows larger as the agent stuffs more context trying to "think harder." The cumulative cost and token usage crosses the budget threshold. Varpulis aggregates cost from all LlmCall events in the Kleene+ match: warning at 80%, kill at 100%.',
+      },
+    };
+
+    function showScenarioDesc(name) {
+      const box = document.getElementById('scenario-desc');
+      const info = SCENARIO_INFO[name];
+      if (!info) { box.style.display = 'none'; return; }
+      document.getElementById('scenario-title').textContent = info.title + ': ';
+      document.getElementById('scenario-text').textContent = info.desc;
+      box.style.display = 'block';
+    }
+
     function runScenario(name) {
       resetAll();
+      showScenarioDesc(name);
 
-      // Small delay between events for visual effect
       let events = [];
 
       switch (name) {
         case 'retry_storm': {
-          // Same tool called repeatedly with same params
+          // Agent calls search("weather in London") 8 times with identical params
+          // after getting rate-limited — LLM regenerates the same tool call each time
           const ph = hashParams({ query: 'weather in London' });
           for (let i = 0; i < 8; i++) {
             events.push({
               timestamp: nextTs(),
               event_type: {
                 type: 'ToolCall',
-                name: 'search',
+                name: 'duckduckgo_search',
                 params_hash: ph,
-                duration_ms: 100,
+                duration_ms: 100 + i * 50,
+              },
+            });
+            // Each attempt also gets a failure result
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'ToolResult',
+                name: 'duckduckgo_search',
+                success: false,
+                error: '429 Too Many Requests',
               },
             });
           }
@@ -972,15 +1017,26 @@
         }
 
         case 'error_spiral': {
-          // Successive tool failures
+          // Agent tries different tools but the backend is down
+          const tools = ['web_fetch', 'api_call', 'web_fetch', 'http_request', 'api_call', 'web_fetch'];
+          const errors = ['503 Service Unavailable', 'Connection timeout', '502 Bad Gateway', 'SSL handshake failed', 'ECONNREFUSED', '500 Internal Server Error'];
           for (let i = 0; i < 6; i++) {
             events.push({
               timestamp: nextTs(),
               event_type: {
+                type: 'ToolCall',
+                name: tools[i],
+                params_hash: i + 1,
+                duration_ms: 2000 + i * 500,
+              },
+            });
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
                 type: 'ToolResult',
-                name: 'web_fetch',
+                name: tools[i],
                 success: false,
-                error: `HTTP ${500 + i}: Server error`,
+                error: errors[i],
               },
             });
           }
@@ -988,8 +1044,40 @@
         }
 
         case 'stuck_agent': {
-          // Many steps without producing output
+          // Agent executes 6 reasoning steps without producing an answer
+          const tools = ['wikipedia_search', 'read_article', 'flight_search', 'hotel_lookup', 'currency_convert', 'weather_api'];
           for (let i = 1; i <= 6; i++) {
+            // LLM thinks
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'LlmCall',
+                model: 'claude-sonnet-4-20250514',
+                input_tokens: 500 + i * 200,
+                output_tokens: 150,
+                cost_usd: 0.002,
+              },
+            });
+            // Calls a tool
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'ToolCall',
+                name: tools[i - 1],
+                params_hash: i * 100,
+                duration_ms: 300,
+              },
+            });
+            // Gets a result
+            events.push({
+              timestamp: nextTs(),
+              event_type: {
+                type: 'ToolResult',
+                name: tools[i - 1],
+                success: true,
+              },
+            });
+            // Step ends without output
             events.push({
               timestamp: nextTs(),
               event_type: {
@@ -1003,7 +1091,7 @@
         }
 
         case 'budget_runaway': {
-          // Expensive LLM calls blowing through budget
+          // 12 LLM calls with escalating token counts and costs
           for (let i = 0; i < 12; i++) {
             events.push({
               timestamp: nextTs(),
@@ -1012,7 +1100,7 @@
                 model: 'gpt-4-turbo',
                 input_tokens: 2000 + i * 500,
                 output_tokens: 800 + i * 200,
-                cost_usd: 0.015,
+                cost_usd: 0.012 + i * 0.003,
               },
             });
           }
@@ -1064,6 +1152,10 @@
     });
 
     // Run scenario
+    scenarioSelect.addEventListener('change', () => {
+      showScenarioDesc(scenarioSelect.value);
+    });
+
     document.getElementById('btn-run-scenario').addEventListener('click', () => {
       const val = scenarioSelect.value;
       if (!val) {
