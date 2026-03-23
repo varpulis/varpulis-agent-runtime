@@ -25,3 +25,7 @@ export { HealthScoreTracker } from "./health.js";
 export { DetectionHistory } from "./history.js";
 export { proposeRule, isDuplicate, applyRule, evaluate } from "./learn/index.js";
 export type { LearnProposal } from "./learn/index.js";
+export { proposeHook, mergeHookConfig } from "./learn/index.js";
+export type { HookProposal, HookConfig } from "./learn/index.js";
+export { proposeCommand, isCommandDuplicate } from "./learn/index.js";
+export type { CommandProposal } from "./learn/index.js";
