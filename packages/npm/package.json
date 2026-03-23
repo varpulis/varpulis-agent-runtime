@@ -22,6 +22,10 @@
       "import": "./dist/adapters/claude-code.js",
       "types": "./dist/adapters/claude-code.d.ts"
     },
+    "./learn": {
+      "import": "./dist/learn/index.js",
+      "types": "./dist/learn/index.d.ts"
+    },
     "./wasm": {
       "import": "./wasm/varpulis_agent_wasm.js",
       "types": "./wasm/varpulis_agent_wasm.d.ts"

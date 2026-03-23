@@ -23,3 +23,5 @@ export { ClaudeCodeAdapter } from "./adapters/claude-code.js";
 export type { ClaudeCodeAdapterConfig } from "./adapters/claude-code.js";
 export { HealthScoreTracker } from "./health.js";
 export { DetectionHistory } from "./history.js";
+export { proposeRule, isDuplicate, applyRule, evaluate } from "./learn/index.js";
+export type { LearnProposal } from "./learn/index.js";

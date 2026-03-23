@@ -5,6 +5,7 @@ from varpulis_agent_runtime.patterns import Patterns
 from varpulis_agent_runtime.auto import init
 from varpulis_agent_runtime.health import HealthScoreTracker
 from varpulis_agent_runtime.history import DetectionHistory
+from varpulis_agent_runtime.learn import LearnProposal, propose_rule, is_duplicate, apply_rule
 
 __all__ = [
     "VarpulisAgentRuntime",
@@ -12,4 +13,8 @@ __all__ = [
     "init",
     "HealthScoreTracker",
     "DetectionHistory",
+    "LearnProposal",
+    "propose_rule",
+    "is_duplicate",
+    "apply_rule",
 ]

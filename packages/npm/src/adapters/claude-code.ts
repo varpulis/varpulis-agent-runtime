@@ -1,5 +1,8 @@
 import type { AgentEvent, Detection } from "../types.js";
 import type { VarpulisAgentRuntime } from "../runtime.js";
+import type { DetectionHistory } from "../history.js";
+import type { LearnProposal } from "../learn/rules.js";
+import { evaluate } from "../learn/rules.js";
 import { hashParams } from "../hash.js";
 
 // Embedded VPL patterns from patterns/claude-code/*.vpl
@@ -57,11 +60,18 @@ export interface ClaudeCodeAdapterConfig {
   protectedPathPatterns?: RegExp[];
   compactionDropThreshold?: number;
   intentPhrases?: RegExp[];
+  /** Detection history for Learn tier cross-session tracking. */
+  history?: DetectionHistory;
+  /** Current session ID for Learn tier tracking. */
+  sessionId?: string;
+  /** Minimum distinct sessions before Learn tier fires. Default: 3. */
+  learnThreshold?: number;
 }
 
 type DetectionCallback = (detection: Detection) => void;
 type IntentStallCallback = (detection: Detection, stallCount: number) => void;
 type CompactionSpiralCallback = (detection: Detection, compactionCount: number) => void;
+type LearnCallback = (proposal: LearnProposal, newContent: string) => void;
 
 export class ClaudeCodeAdapter {
   private runtime: VarpulisAgentRuntime;
@@ -74,9 +84,15 @@ export class ClaudeCodeAdapter {
   private compactionCount = 0;
   private lastTokenCount: number | null = null;
 
+  private history: DetectionHistory | null;
+  private sessionId: string;
+  private learnThreshold: number;
+  private claudeMdContent: string | null = null;
+
   private intentStallListeners: IntentStallCallback[] = [];
   private compactionSpiralListeners: CompactionSpiralCallback[] = [];
   private violationListeners: DetectionCallback[] = [];
+  private learnListeners: LearnCallback[] = [];
 
   constructor(runtime: VarpulisAgentRuntime, config?: ClaudeCodeAdapterConfig) {
     this.runtime = runtime;
@@ -84,6 +100,9 @@ export class ClaudeCodeAdapter {
     this.protectedPathPatterns = config?.protectedPathPatterns ?? DEFAULT_PROTECTED_PATH_PATTERNS;
     this.compactionDropThreshold = config?.compactionDropThreshold ?? 0.20;
     this.intentPhrases = config?.intentPhrases ?? DEFAULT_INTENT_PHRASES;
+    this.history = config?.history ?? null;
+    this.sessionId = config?.sessionId ?? crypto.randomUUID?.() ?? `sess_${Date.now()}`;
+    this.learnThreshold = config?.learnThreshold ?? 3;
 
     // Load all Claude Code VPL patterns into the CEP engine
     runtime.addPatternsFromVpl(ALL_VPL_PATTERNS);
@@ -253,6 +272,32 @@ export class ClaudeCodeAdapter {
     };
   }
 
+  /**
+   * Register a callback for Learn tier proposals.
+   *
+   * When a pattern fires enough times across sessions (default: 3),
+   * the Learn tier generates a CLAUDE.md rule and calls this callback
+   * with the proposal and the new CLAUDE.md content.
+   *
+   * The caller decides whether to write the file (dry-run vs auto-apply).
+   * Returns an unsubscribe function.
+   */
+  onLearn(callback: LearnCallback): () => void {
+    this.learnListeners.push(callback);
+    return () => {
+      const idx = this.learnListeners.indexOf(callback);
+      if (idx !== -1) this.learnListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Set the current CLAUDE.md content for Learn tier deduplication.
+   * Call this when the session starts or after writing a learned rule.
+   */
+  setClaudeMdContent(content: string): void {
+    this.claudeMdContent = content;
+  }
+
   // --- Private helpers ---
 
   private handleDetection(detection: Detection): void {
@@ -273,6 +318,28 @@ export class ClaudeCodeAdapter {
           cb(detection);
         }
         break;
+    }
+
+    // Learn tier evaluation
+    this.evaluateLearn(detection);
+  }
+
+  private evaluateLearn(detection: Detection): void {
+    if (!this.history || this.learnListeners.length === 0) return;
+
+    const result = evaluate(
+      detection,
+      this.history,
+      this.sessionId,
+      this.claudeMdContent ?? "",
+      { threshold: this.learnThreshold },
+    );
+
+    if (result) {
+      this.claudeMdContent = result.newContent;
+      for (const cb of this.learnListeners) {
+        cb(result.proposal, result.newContent);
+      }
     }
   }
 
