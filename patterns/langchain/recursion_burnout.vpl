@@ -1,0 +1,4 @@
+pattern RecursionBurnout = SEQ(
+    StepEnd where produced_output == false as first,
+    StepEnd+ where produced_output == false as more
+) within 300s

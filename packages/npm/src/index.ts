@@ -19,3 +19,7 @@ export type {
   TokenVelocityConfig,
 } from "./types.js";
 export type { McpToolUse, McpToolResult } from "./mcp.js";
+export { ClaudeCodeAdapter } from "./adapters/claude-code.js";
+export type { ClaudeCodeAdapterConfig } from "./adapters/claude-code.js";
+export { HealthScoreTracker } from "./health.js";
+export { DetectionHistory } from "./history.js";

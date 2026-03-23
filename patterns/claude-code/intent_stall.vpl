@@ -1,0 +1,4 @@
+pattern IntentStall = SEQ(
+    LlmResponse where intent_without_action == true as r1,
+    LlmResponse+ where intent_without_action == true as stalls
+) within 120s

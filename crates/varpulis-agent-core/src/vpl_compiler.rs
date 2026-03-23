@@ -243,6 +243,115 @@ mod tests {
         }
     }
 
+    // --- Claude Code patterns ---
+
+    #[test]
+    fn compile_intent_stall_vpl() {
+        let source = include_str!("../../../patterns/claude-code/intent_stall.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile intent_stall.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "IntentStall");
+    }
+
+    #[test]
+    fn compile_compaction_spiral_vpl() {
+        let source = include_str!("../../../patterns/claude-code/compaction_spiral.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile compaction_spiral.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "CompactionSpiral");
+    }
+
+    #[test]
+    fn compile_context_starvation_vpl() {
+        let source = include_str!("../../../patterns/claude-code/context_starvation.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile context_starvation.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "ContextStarvation");
+    }
+
+    #[test]
+    fn compile_git_push_violation_vpl() {
+        let source = include_str!("../../../patterns/claude-code/git_push_violation.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile git_push_violation.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "GitPushViolation");
+    }
+
+    #[test]
+    fn compile_config_overwrite_violation_vpl() {
+        let source = include_str!("../../../patterns/claude-code/config_overwrite_violation.vpl");
+        let patterns =
+            compile_vpl(source).expect("Failed to compile config_overwrite_violation.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "ConfigOverwriteViolation");
+    }
+
+    #[test]
+    fn compile_all_claude_code_patterns() {
+        let files = [
+            (
+                "intent_stall",
+                include_str!("../../../patterns/claude-code/intent_stall.vpl"),
+            ),
+            (
+                "compaction_spiral",
+                include_str!("../../../patterns/claude-code/compaction_spiral.vpl"),
+            ),
+            (
+                "context_starvation",
+                include_str!("../../../patterns/claude-code/context_starvation.vpl"),
+            ),
+            (
+                "git_push_violation",
+                include_str!("../../../patterns/claude-code/git_push_violation.vpl"),
+            ),
+            (
+                "config_overwrite_violation",
+                include_str!("../../../patterns/claude-code/config_overwrite_violation.vpl"),
+            ),
+        ];
+        for (name, source) in files {
+            let patterns = compile_vpl(source).unwrap_or_else(|e| panic!("{name} failed: {e}"));
+            assert_eq!(patterns.len(), 1, "{name} should produce exactly 1 pattern");
+        }
+    }
+
+    // --- LangChain patterns ---
+
+    #[test]
+    fn compile_react_ping_pong_vpl() {
+        let source = include_str!("../../../patterns/langchain/react_ping_pong.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile react_ping_pong.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "ReactPingPong");
+    }
+
+    #[test]
+    fn compile_recursion_burnout_vpl() {
+        let source = include_str!("../../../patterns/langchain/recursion_burnout.vpl");
+        let patterns = compile_vpl(source).expect("Failed to compile recursion_burnout.vpl");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].name, "RecursionBurnout");
+    }
+
+    #[test]
+    fn compile_all_langchain_patterns() {
+        let files = [
+            (
+                "react_ping_pong",
+                include_str!("../../../patterns/langchain/react_ping_pong.vpl"),
+            ),
+            (
+                "recursion_burnout",
+                include_str!("../../../patterns/langchain/recursion_burnout.vpl"),
+            ),
+        ];
+        for (name, source) in files {
+            let patterns = compile_vpl(source).unwrap_or_else(|e| panic!("{name} failed: {e}"));
+            assert_eq!(patterns.len(), 1, "{name} should produce exactly 1 pattern");
+        }
+    }
+
     #[test]
     fn compile_custom_vpl() {
         let source = r#"

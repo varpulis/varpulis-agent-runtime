@@ -1,0 +1,4 @@
+pattern CompactionSpiral = SEQ(
+    Compaction as c1,
+    Compaction+ where freed_ratio < 0.15 as spiral
+) within 300s

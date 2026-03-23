@@ -22,7 +22,8 @@ export type AgentEventType =
   | { type: "LlmResponse"; model: string; has_tool_use: boolean }
   | { type: "StepStart"; step_number: number }
   | { type: "StepEnd"; step_number: number; produced_output: boolean }
-  | { type: "FinalAnswer"; content_length: number };
+  | { type: "FinalAnswer"; content_length: number }
+  | { type: "Custom"; name: string };
 
 /** A detection emitted when a behavioral pattern matches. */
 export interface Detection {

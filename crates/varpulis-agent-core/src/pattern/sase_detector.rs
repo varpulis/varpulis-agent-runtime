@@ -39,15 +39,7 @@ impl SaseDetector {
             name,
             pattern,
             move |event| {
-                let event_type_name = match &event.event_type {
-                    crate::event::AgentEventType::ToolCall { .. } => "ToolCall",
-                    crate::event::AgentEventType::ToolResult { .. } => "ToolResult",
-                    crate::event::AgentEventType::LlmCall { .. } => "LlmCall",
-                    crate::event::AgentEventType::LlmResponse { .. } => "LlmResponse",
-                    crate::event::AgentEventType::StepStart { .. } => "StepStart",
-                    crate::event::AgentEventType::StepEnd { .. } => "StepEnd",
-                    crate::event::AgentEventType::FinalAnswer { .. } => "FinalAnswer",
-                };
+                let event_type_name = event.event_type_name();
                 types.is_empty() || types.iter().any(|t| t == event_type_name)
             },
             handler,
@@ -742,6 +734,69 @@ mod tests {
             "Should detect stuck agent after 3+ empty steps, got {}",
             total
         );
+    }
+
+    #[test]
+    fn vpl_intent_stall_with_metadata() {
+        use crate::runtime::AgentRuntime;
+
+        let mut rt = AgentRuntime::new();
+        rt.set_cooldown_ms(0);
+        let source = include_str!("../../../../patterns/claude-code/intent_stall.vpl");
+        rt.add_patterns_from_vpl(source).expect("VPL compile");
+
+        // LlmResponse with intent_without_action=true (via metadata)
+        let mut e1 = AgentEvent::at(
+            1000,
+            crate::event::AgentEventType::LlmResponse {
+                model: "test".into(),
+                has_tool_use: false,
+            },
+        );
+        e1.metadata
+            .insert("intent_without_action".into(), serde_json::json!(true));
+
+        let mut e2 = e1.clone();
+        e2.timestamp = 2000;
+
+        assert!(rt.observe(e1).is_empty());
+        let dets = rt.observe(e2);
+        assert!(
+            !dets.is_empty(),
+            "Should detect IntentStall from metadata-enriched LlmResponse events"
+        );
+        assert_eq!(dets[0].pattern_name, "IntentStall");
+    }
+
+    #[test]
+    fn vpl_compaction_spiral_with_custom_events() {
+        use crate::runtime::AgentRuntime;
+
+        let mut rt = AgentRuntime::new();
+        rt.set_cooldown_ms(0);
+        let source = include_str!("../../../../patterns/claude-code/compaction_spiral.vpl");
+        rt.add_patterns_from_vpl(source).expect("VPL compile");
+
+        // Two Compaction events with low freed_ratio
+        let mut c1 = AgentEvent::at(
+            1000,
+            crate::event::AgentEventType::Custom {
+                name: "Compaction".into(),
+            },
+        );
+        c1.metadata
+            .insert("freed_ratio".into(), serde_json::json!(0.10));
+
+        let mut c2 = c1.clone();
+        c2.timestamp = 60_000;
+
+        assert!(rt.observe(c1).is_empty());
+        let dets = rt.observe(c2);
+        assert!(
+            !dets.is_empty(),
+            "Should detect CompactionSpiral from Custom Compaction events"
+        );
+        assert_eq!(dets[0].pattern_name, "CompactionSpiral");
     }
 
     #[test]

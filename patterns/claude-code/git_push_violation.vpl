@@ -1,0 +1,5 @@
+pattern GitPushViolation = SEQ(
+    Compaction as c,
+    ToolCall+ as steps,
+    ToolCall where name == "bash" and git_push_protected == true as push
+) within 600s

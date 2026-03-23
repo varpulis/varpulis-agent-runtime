@@ -18,6 +18,10 @@
       "import": "./dist/integrations/openai.js",
       "types": "./dist/integrations/openai.d.ts"
     },
+    "./claude-code": {
+      "import": "./dist/adapters/claude-code.js",
+      "types": "./dist/adapters/claude-code.d.ts"
+    },
     "./wasm": {
       "import": "./wasm/varpulis_agent_wasm.js",
       "types": "./wasm/varpulis_agent_wasm.d.ts"

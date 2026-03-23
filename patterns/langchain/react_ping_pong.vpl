@@ -1,0 +1,6 @@
+pattern ReactPingPong = SEQ(
+    ToolCall as a,
+    ToolCall where name != a.name as b,
+    ToolCall where name == a.name and params_hash == a.params_hash as a2,
+    ToolCall where name == b.name as b2
+) within 60s

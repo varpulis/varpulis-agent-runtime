@@ -51,6 +51,12 @@ pub enum AgentEventType {
     FinalAnswer {
         content_length: u32,
     },
+    /// Custom/synthetic event type for adapter-generated events.
+    /// The `name` becomes the CEP event type (e.g. "Compaction", "RuleViolation").
+    /// All meaningful fields should be placed in `AgentEvent::metadata`.
+    Custom {
+        name: String,
+    },
 }
 
 impl AgentEvent {
@@ -168,6 +174,7 @@ impl AgentEvent {
                     varpulis_core::Value::Int(*content_length as i64),
                 )],
             ),
+            AgentEventType::Custom { name } => (name.as_str(), vec![]),
         };
 
         let ts = chrono::DateTime::from_timestamp_millis(self.timestamp as i64).unwrap_or_default();
@@ -176,6 +183,15 @@ impl AgentEvent {
         for (key, value) in fields {
             cep_event = cep_event.with_field(key, value);
         }
+
+        // Forward metadata fields to CEP event so VPL patterns can match on them.
+        for (key, value) in &self.metadata {
+            let cep_value = json_to_cep_value(value);
+            if let Some(v) = cep_value {
+                cep_event = cep_event.with_field(key.as_str(), v);
+            }
+        }
+
         cep_event
     }
 
@@ -187,6 +203,36 @@ impl AgentEvent {
             }
             _ => None,
         }
+    }
+
+    /// Returns the CEP event type name string.
+    pub fn event_type_name(&self) -> &str {
+        match &self.event_type {
+            AgentEventType::ToolCall { .. } => "ToolCall",
+            AgentEventType::ToolResult { .. } => "ToolResult",
+            AgentEventType::LlmCall { .. } => "LlmCall",
+            AgentEventType::LlmResponse { .. } => "LlmResponse",
+            AgentEventType::StepStart { .. } => "StepStart",
+            AgentEventType::StepEnd { .. } => "StepEnd",
+            AgentEventType::FinalAnswer { .. } => "FinalAnswer",
+            AgentEventType::Custom { name } => name,
+        }
+    }
+}
+
+/// Convert a serde_json::Value to a Varpulis CEP Value for metadata forwarding.
+fn json_to_cep_value(value: &serde_json::Value) -> Option<varpulis_core::Value> {
+    match value {
+        serde_json::Value::Bool(b) => Some(varpulis_core::Value::Bool(*b)),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Some(varpulis_core::Value::Int(i))
+            } else {
+                n.as_f64().map(varpulis_core::Value::Float)
+            }
+        }
+        serde_json::Value::String(s) => Some(varpulis_core::Value::from(s.as_str())),
+        _ => None, // Arrays/objects/null not forwarded
     }
 }
 
@@ -236,5 +282,64 @@ mod tests {
         let parsed: AgentEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.timestamp, 1000);
         assert_eq!(parsed.tool_name(), Some("search"));
+    }
+
+    #[test]
+    fn test_custom_event_serde() {
+        let json = r#"{"timestamp":1000,"event_type":{"type":"Custom","name":"Compaction"},"metadata":{"freed_ratio":0.12}}"#;
+        let event: AgentEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.event_type_name(), "Compaction");
+        assert_eq!(
+            event.metadata.get("freed_ratio").and_then(|v| v.as_f64()),
+            Some(0.12)
+        );
+    }
+
+    #[test]
+    fn test_metadata_forwarded_to_cep() {
+        let mut event = AgentEvent::at(
+            1000,
+            AgentEventType::LlmResponse {
+                model: "test".into(),
+                has_tool_use: false,
+            },
+        );
+        event.metadata.insert(
+            "intent_without_action".into(),
+            serde_json::Value::Bool(true),
+        );
+        event
+            .metadata
+            .insert("hedge_count".into(), serde_json::json!(3));
+
+        let cep = event.to_cep_event();
+        // Typed fields should be present
+        assert_eq!(cep.get_str("model"), Some("test"));
+        // Metadata fields should be forwarded as CEP fields
+        // (intent_without_action is a Bool, forwarded via json_to_cep_value)
+        assert!(cep.get("intent_without_action").is_some());
+        assert_eq!(cep.get_int("hedge_count"), Some(3));
+    }
+
+    #[test]
+    fn test_custom_event_metadata_to_cep() {
+        let mut event = AgentEvent::at(
+            1000,
+            AgentEventType::Custom {
+                name: "Compaction".into(),
+            },
+        );
+        event
+            .metadata
+            .insert("freed_ratio".into(), serde_json::json!(0.12));
+        event
+            .metadata
+            .insert("system_context_ratio".into(), serde_json::json!(0.75));
+
+        let cep = event.to_cep_event();
+        assert_eq!(&*cep.event_type, "Compaction");
+        // All fields come from metadata for Custom events
+        assert!(cep.get_float("freed_ratio").is_some());
+        assert!(cep.get_float("system_context_ratio").is_some());
     }
 }

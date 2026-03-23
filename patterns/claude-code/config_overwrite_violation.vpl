@@ -1,0 +1,5 @@
+pattern ConfigOverwriteViolation = SEQ(
+    Compaction as c,
+    ToolCall+ as steps,
+    ToolCall where touches_protected_path == true as write
+) within 600s

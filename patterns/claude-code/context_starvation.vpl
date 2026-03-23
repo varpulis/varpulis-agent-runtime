@@ -1,0 +1,4 @@
+pattern ContextStarvation = SEQ(
+    Compaction as c1,
+    Compaction+ where system_context_ratio > 0.70 as starved
+) within 600s
