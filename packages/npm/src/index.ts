@@ -16,6 +16,7 @@ export type {
   RetryStormConfig,
   RuntimeConfig,
   StuckAgentConfig,
+  TargetedFailureConfig,
   TokenVelocityConfig,
 } from "./types.js";
 export type { McpToolUse, McpToolResult } from "./mcp.js";
@@ -23,6 +24,13 @@ export { ClaudeCodeAdapter } from "./adapters/claude-code.js";
 export type { ClaudeCodeAdapterConfig } from "./adapters/claude-code.js";
 export { HealthScoreTracker } from "./health.js";
 export { DetectionHistory } from "./history.js";
+export { ConvergentFailureTracker } from "./convergent.js";
+export type {
+  ConvergentFailureConfig,
+  StaleGuardrailProposal,
+  TargetFailureRecord,
+  SessionEvidence,
+} from "./convergent.js";
 export { proposeRule, isDuplicate, applyRule, evaluate } from "./learn/index.js";
 export type { LearnProposal } from "./learn/index.js";
 export { proposeHook, mergeHookConfig } from "./learn/index.js";

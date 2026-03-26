@@ -5,6 +5,7 @@ import type {
   PatternConfig,
   RetryStormConfig,
   StuckAgentConfig,
+  TargetedFailureConfig,
   TokenVelocityConfig,
 } from "./types.js";
 
@@ -38,6 +39,11 @@ export class Patterns {
   /** Detect repeating cycles in tool call sequences. */
   static circularReasoning(config: CircularReasoningConfig = {}): PatternConfig {
     return { type: "circular_reasoning", config };
+  }
+
+  /** Detect repeated failures on the same target (test, file, endpoint) within a session. */
+  static targetedFailure(config: TargetedFailureConfig = {}): PatternConfig {
+    return { type: "targeted_failure", config };
   }
 
   /** All default patterns with default configurations. */

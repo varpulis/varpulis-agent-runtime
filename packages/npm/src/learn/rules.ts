@@ -129,6 +129,16 @@ const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     severity: "NEVER",
     dedup_key: `config_overwrite_${ctx.path_pattern ?? "prod_config"}`,
   }),
+
+  targeted_failure: (ctx) => ({
+    pattern_name: "targeted_failure",
+    rule_text: ctx.tool_name
+      ? `When ${ctx.tool_name} fails repeatedly on the same target, stop and report the failing target to the user instead of retrying.`
+      : "When a tool fails repeatedly on the same target (test, file, or endpoint), stop and report the failing target to the user instead of retrying.",
+    section: "Behavioral Rules",
+    severity: "ALWAYS",
+    dedup_key: `targeted_failure_${ctx.tool_name ?? "generic"}`,
+  }),
 };
 
 // ---------------------------------------------------------------------------

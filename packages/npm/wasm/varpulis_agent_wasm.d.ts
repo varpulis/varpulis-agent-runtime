@@ -18,11 +18,16 @@ export class WasmAgentRuntime {
      */
     addCircularReasoning(config_json: string): void;
     /**
+     * Add a targeted failure detector (SASE Kleene+ for convergent failure detection).
+     */
+    addTargetedFailure(config_json: string): void;
+    /**
      * Add an error spiral detector (SASE-backed with Kleene+).
      */
     addErrorSpiral(config_json: string): void;
     /**
      * Add patterns from VPL source. Returns the number of patterns added.
+     * Requires the `vpl` feature on `varpulis-agent-core` (enabled by default).
      */
     addPatternsFromVpl(vpl_source: string): number;
     /**

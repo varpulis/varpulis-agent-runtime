@@ -59,6 +59,7 @@ export class WasmAgentRuntime {
     }
     /**
      * Add patterns from VPL source. Returns the number of patterns added.
+     * Requires the `vpl` feature on `varpulis-agent-core` (enabled by default).
      * @param {string} vpl_source
      * @returns {number}
      */

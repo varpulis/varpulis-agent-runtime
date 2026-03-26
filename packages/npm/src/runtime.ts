@@ -42,6 +42,9 @@ export class VarpulisAgentRuntime {
           case "circular_reasoning":
             this.wasm.addCircularReasoning(JSON.stringify(p.config));
             break;
+          case "targeted_failure":
+            this.wasm.addTargetedFailure(JSON.stringify(p.config));
+            break;
         }
       }
     }

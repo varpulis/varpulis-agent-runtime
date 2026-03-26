@@ -91,6 +91,14 @@ export interface CircularReasoningConfig {
   min_cycle_repetitions?: number;
 }
 
+/** Configuration for the targeted failure detector (per-session component of convergent failure). */
+export interface TargetedFailureConfig {
+  /** Minimum failures on the same target within window. Default: 2. */
+  min_failures?: number;
+  /** Sliding window in seconds. Default: 120. */
+  window_seconds?: number;
+}
+
 /** A pattern configuration passed to the runtime constructor. */
 export interface PatternConfig {
   type:
@@ -99,14 +107,16 @@ export interface PatternConfig {
     | "error_spiral"
     | "budget_runaway"
     | "token_velocity"
-    | "circular_reasoning";
+    | "circular_reasoning"
+    | "targeted_failure";
   config:
     | RetryStormConfig
     | StuckAgentConfig
     | ErrorSpiralConfig
     | BudgetRunawayConfig
     | TokenVelocityConfig
-    | CircularReasoningConfig;
+    | CircularReasoningConfig
+    | TargetedFailureConfig;
 }
 
 /** Runtime configuration. */

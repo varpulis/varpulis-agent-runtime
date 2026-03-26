@@ -33,6 +33,10 @@ class Patterns:
         return {"type": "circular_reasoning", "config": kwargs}
 
     @staticmethod
+    def targeted_failure(**kwargs: Any) -> dict[str, Any]:
+        return {"type": "targeted_failure", "config": kwargs}
+
+    @staticmethod
     def defaults() -> list[dict[str, Any]]:
         return [
             Patterns.retry_storm(),

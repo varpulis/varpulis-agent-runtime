@@ -31,6 +31,7 @@ AI agents in production fail in ways that are invisible to existing tools:
 | **Error spirals** | Tool error → reformulate → tool error → reformulate → ... | Each retry is different enough to pass static checks |
 | **Stuck agent** | 20 steps of "thinking" without producing an answer | No single step is wrong |
 | **Token velocity spike** | Sudden 3x increase in tokens per step | Gradual degradation, no sharp boundary |
+| **Convergent failure** | 3 independent sessions fail on the same protected test | No single session sees the full picture |
 
 These are **temporal patterns** — they only become visible when you look at sequences of events over time. Observability tools (LangSmith, Braintrust) analyze traces post-hoc. Static guardrails (Guardrails AI, NeMo) validate individual inputs/outputs. Varpulis detects behavioral patterns as they unfold.
 
@@ -120,7 +121,7 @@ detections = runtime.observe(
 
 ## Patterns
 
-Six pre-packaged patterns ship out of the box. All are configurable and have sensible defaults.
+Seven pre-packaged patterns ship out of the box, plus cross-session convergent failure detection. All are configurable and have sensible defaults.
 
 ### Retry Storm
 
@@ -200,6 +201,128 @@ Patterns.circularReasoning({
 ```
 
 **Detects:** Agent stuck alternating between tools without making progress.
+
+### Targeted Failure (Convergent Failure Detection)
+
+Repeated failures on the same target (test, file, endpoint) within a session — the per-session building block for cross-session convergent failure detection.
+
+```typescript
+Patterns.targetedFailure({
+  min_failures: 2,       // default
+  window_seconds: 120,   // default
+})
+```
+
+**Detects:** Agent hitting the same wall repeatedly. When combined with the `ConvergentFailureTracker` (see below), detects stale guardrails across independent sessions.
+
+---
+
+## Convergent Failure Detection
+
+When multiple independent sessions — different users, different tasks, completely different code — all fail on the same target, the common denominator is the target, not the code.
+
+This is the **cross-session correlation** layer. It answers the question: *"Is this protected test genuinely outdated, or is the agent doing something wrong?"*
+
+### How it works
+
+```
+Session 1 ──ToolResult{fail}──▶ SASE Engine ──targeted_failure──┐
+Session 2 ──ToolResult{fail}──▶ SASE Engine ──targeted_failure──┤
+Session 3 ──ToolResult{fail}──▶ SASE Engine ──targeted_failure──┤
+                                                                 ▼
+                                               ConvergentFailureTracker
+                                            (3 sessions × same target)
+                                                         │
+                                                         ▼
+                                              StaleGuardrailProposal
+                                          ┌──────────┴──────────┐
+                                          ▼                     ▼
+                                    .varpulis/proposals/   Dashboard UI
+                                    (ring-fenced file)     (approve/dismiss)
+```
+
+1. **Per-session**: The `targeted_failure` SASE pattern detects repeated failures on the same target within a single session. The failure target is extracted from error output using regex (supports pytest, jest, cargo test, and generic patterns).
+
+2. **Cross-session**: The `ConvergentFailureTracker` aggregates targeted failures across sessions. When N distinct sessions (default: 3) fail on the same target within a time window (default: 1 hour), it emits a `StaleGuardrailProposal`.
+
+3. **Human review**: Proposals are written to `.varpulis/proposals/` as JSON files. A human reviews the evidence and decides whether to update the test or dismiss the concern.
+
+**Agents propose amendments they can't ratify. Constitutional, not autocratic.**
+
+### TypeScript
+
+```typescript
+import { ConvergentFailureTracker } from '@varpulis/agent-runtime';
+
+const tracker = new ConvergentFailureTracker({
+  sessionThreshold: 3,    // fire after 3 distinct sessions
+  windowSeconds: 3600,    // within 1 hour
+});
+
+// When a targeted_failure detection fires in any session:
+const proposal = tracker.record(
+  'tests/test_auth.py::test_login',  // target
+  'session-abc',                      // session ID
+  'AssertionError: expected 200',     // error summary
+  'Add OAuth2 support',               // what this session was doing
+);
+
+if (proposal) {
+  // Write to .varpulis/proposals/ for human review
+  console.log(proposal.recommendation);
+  // "Target 'tests/test_auth.py::test_login' may be outdated — 3 independent
+  //  sessions failed on it. Consider updating or removing this guardrail."
+}
+
+// Persist state between restarts
+const state = tracker.toJSON();
+const restored = ConvergentFailureTracker.fromJSON(state);
+```
+
+### Python
+
+```python
+from varpulis_agent_runtime import ConvergentFailureTracker
+
+tracker = ConvergentFailureTracker(session_threshold=3, window_seconds=3600)
+
+proposal = tracker.record(
+    target="tests/test_auth.py::test_login",
+    session_id="session-abc",
+    error_summary="AssertionError: expected 200",
+    task_description="Add OAuth2 support",
+)
+
+if proposal:
+    print(proposal["recommendation"])
+
+# Persist to disk
+tracker.save(".varpulis/convergent_state.json")
+restored = ConvergentFailureTracker.load(".varpulis/convergent_state.json")
+```
+
+### Claude Code Monitor
+
+The [Claude Code Monitor](examples/claude-code-monitor/) integrates convergent failure detection out of the box. The monitor daemon:
+
+- Tracks failure targets across all Claude Code sessions
+- Extracts test names from error output automatically
+- Writes proposals to `.varpulis/proposals/` when the threshold is met
+- Displays proposals on the live dashboard with approve/dismiss buttons
+- Exposes `GET /api/proposals` and `POST /api/proposals/<id>/resolve` endpoints
+
+### Failure Target Extraction
+
+The adapter automatically extracts failure targets from error output using these patterns:
+
+| Framework | Example Error | Extracted Target |
+|---|---|---|
+| **pytest** | `FAILED tests/test_auth.py::test_login` | `tests/test_auth.py::test_login` |
+| **jest** | `FAIL src/__tests__/auth.test.ts` | `src/__tests__/auth.test.ts` |
+| **cargo test** | `test tests::test_auth ... FAILED` | `tests::test_auth` |
+| **generic** | `Error in tests/test_auth.py:42` | `tests/test_auth.py:42` |
+
+Custom patterns can be provided via the `failureTargetPatterns` config option.
 
 ---
 
@@ -319,7 +442,7 @@ Every agent action maps to one of these event types:
 | Event Type | Fields | When to Emit |
 |---|---|---|
 | `ToolCall` | `name`, `params_hash`, `duration_ms` | Before/during a tool invocation |
-| `ToolResult` | `name`, `success`, `error?` | After a tool returns |
+| `ToolResult` | `name`, `success`, `error?` | After a tool returns (add `failure_target` in metadata for convergent failure tracking) |
 | `LlmCall` | `model`, `input_tokens`, `output_tokens`, `cost_usd` | After an LLM call completes |
 | `LlmResponse` | `model`, `has_tool_use` | After parsing the LLM response |
 | `StepStart` | `step_number` | At the beginning of an agent step |
@@ -351,6 +474,8 @@ budget_runaway:      llm_call{+} within 60s where sum(cost) > threshold
 stuck_agent:         step{no_output}{15+}     → reset on final_answer
 circular_reasoning:  A → B → A → B           → cross-event name matching
 token_velocity:      step-level token tracking with moving average baseline
+targeted_failure:    tool_error{2+} within 120s → group by failure_target metadata
+                     + cross-session ConvergentFailureTracker (N sessions × same target)
 ```
 
 The `+` operator is **Kleene closure** — it matches one or more repetitions and the ZDD compactly represents all valid event combinations without exponential blowup.
@@ -399,9 +524,36 @@ The built-in patterns ship as `.vpl` files in the [`patterns/`](patterns/) direc
 {
   pattern_name: string;       // e.g. "retry_storm"
   severity: "info" | "warning" | "error" | "critical";
+  action: "alert" | "kill";   // Suggested response
   message: string;            // Human-readable description
   details: Record<string, unknown>;  // Pattern-specific data
   timestamp: number;          // When the detection fired
+}
+```
+
+### `ConvergentFailureTracker`
+
+| Method | Description |
+|---|---|
+| `record(target, sessionId, errorSummary, taskDescription?)` | Record a failure. Returns a `StaleGuardrailProposal` if threshold met. |
+| `getPendingTargets()` | Get all targets that have met the session threshold |
+| `getAllRecords()` | Get all tracked records (for dashboard display) |
+| `toJSON()` / `fromJSON(data)` | Serialize/deserialize state for persistence |
+| `save(path)` / `load(path)` | Python only: persist to/from JSON file |
+
+### `StaleGuardrailProposal`
+
+```typescript
+{
+  type: "stale_guardrail";
+  target: string;               // e.g. "tests/test_auth.py::test_login"
+  evidence: SessionEvidence[];  // Which sessions failed and when
+  session_count: number;        // Number of distinct sessions
+  first_seen: string;           // ISO timestamp of first failure
+  last_seen: string;            // ISO timestamp of most recent failure
+  recommendation: string;       // Human-readable recommendation
+  status: "pending" | "approved" | "dismissed";
+  created_at: string;           // When the proposal was generated
 }
 ```
 

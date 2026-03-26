@@ -12,6 +12,8 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
   MemoryLossViolation: 0.18,
   ContextStarvation: 0.03,
   IdleCompaction: 0.03,
+  targeted_failure: 0.06,
+  stale_guardrail: 0.15,
 };
 
 const SEVERITY_MULTIPLIERS: Record<string, number> = {

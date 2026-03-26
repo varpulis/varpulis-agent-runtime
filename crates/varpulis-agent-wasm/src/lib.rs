@@ -3,7 +3,8 @@ use wasm_bindgen::prelude::*;
 use varpulis_agent_core::event::AgentEvent;
 use varpulis_agent_core::pattern::{
     BudgetRunawayConfig, CircularReasoningConfig, ErrorSpiralConfig, RetryStormConfig,
-    SaseDetector, StuckAgentConfig, TokenVelocityConfig, TokenVelocitySpikeDetector,
+    SaseDetector, StuckAgentConfig, TargetedFailureConfig, TokenVelocityConfig,
+    TokenVelocitySpikeDetector,
 };
 use varpulis_agent_core::runtime::AgentRuntime;
 
@@ -109,6 +110,21 @@ impl WasmAgentRuntime {
         Ok(())
     }
 
+    /// Add a targeted failure detector (SASE Kleene+ for convergent failure detection).
+    #[wasm_bindgen(js_name = "addTargetedFailure")]
+    pub fn add_targeted_failure(&mut self, config_json: &str) -> Result<(), JsError> {
+        let config: TargetedFailureConfigJs =
+            serde_json::from_str(config_json).map_err(|e| JsError::new(&e.to_string()))?;
+        self.inner
+            .add_detector(Box::new(SaseDetector::targeted_failure(
+                &TargetedFailureConfig {
+                    min_failures: config.min_failures.unwrap_or(2),
+                    window_seconds: config.window_seconds.unwrap_or(120),
+                },
+            )));
+        Ok(())
+    }
+
     /// Add a circular reasoning detector (SASE sequence pattern).
     #[wasm_bindgen(js_name = "addCircularReasoning")]
     pub fn add_circular_reasoning(&mut self, config_json: &str) -> Result<(), JsError> {
@@ -193,6 +209,12 @@ struct BudgetRunawayConfigJs {
 struct TokenVelocityConfigJs {
     baseline_window_steps: Option<u32>,
     spike_multiplier: Option<f64>,
+}
+
+#[derive(serde::Deserialize)]
+struct TargetedFailureConfigJs {
+    min_failures: Option<u32>,
+    window_seconds: Option<u64>,
 }
 
 #[derive(serde::Deserialize)]

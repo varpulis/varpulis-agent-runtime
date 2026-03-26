@@ -125,6 +125,15 @@ def _config_overwrite_violation(ctx: dict[str, Any]) -> LearnProposal:
     return LearnProposal("ConfigOverwriteViolation", text, "Safety Rules", "NEVER", f"config_overwrite_{path or 'prod_config'}")
 
 
+def _targeted_failure(ctx: dict[str, Any]) -> LearnProposal:
+    tool = ctx.get("tool_name")
+    if tool:
+        text = f"When {tool} fails repeatedly on the same target, stop and report the failing target to the user instead of retrying."
+    else:
+        text = "When a tool fails repeatedly on the same target (test, file, or endpoint), stop and report the failing target to the user instead of retrying."
+    return LearnProposal("targeted_failure", text, "Behavioral Rules", "ALWAYS", f"targeted_failure_{tool or 'generic'}")
+
+
 _TEMPLATES: dict[str, Any] = {
     "IntentStall": _intent_stall,
     "CompactionSpiral": _compaction_spiral,
@@ -136,6 +145,7 @@ _TEMPLATES: dict[str, Any] = {
     "budget_runaway": _budget_runaway,
     "GitPushViolation": _git_push_violation,
     "ConfigOverwriteViolation": _config_overwrite_violation,
+    "targeted_failure": _targeted_failure,
 }
 
 

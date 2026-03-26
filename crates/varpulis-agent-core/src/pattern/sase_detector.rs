@@ -367,6 +367,116 @@ impl SaseDetector {
         }
     }
 
+    /// Targeted Failure: ToolResult{success=false}+ WITHIN window, post-match
+    /// grouping by failure_target metadata.
+    ///
+    /// Detects when a session repeatedly fails on the same target (test, file,
+    /// endpoint). The `failure_target` field is expected in event metadata,
+    /// set by the adapter layer. Emits a detection per distinct target that
+    /// exceeds the threshold.
+    pub fn targeted_failure(config: &super::TargetedFailureConfig) -> Self {
+        let min_failures = config.min_failures;
+
+        // ToolResult{success==false}+ within window
+        let pattern = PatternBuilder::within(
+            PatternBuilder::one_or_more(SasePattern::Event {
+                event_type: "ToolResult".to_string(),
+                predicate: Some(PatternBuilder::field_eq(
+                    "success",
+                    varpulis_core::Value::Bool(false),
+                )),
+                alias: Some("failure".to_string()),
+            }),
+            Duration::from_secs(config.window_seconds),
+        );
+
+        Self::new_with_filter(
+            "targeted_failure",
+            pattern,
+            |event| {
+                matches!(
+                    &event.event_type,
+                    crate::event::AgentEventType::ToolResult { success: false, .. }
+                )
+            },
+            move |matches, event| {
+                let mut detections = Vec::new();
+                for m in matches {
+                    // Group failures by failure_target from metadata.
+                    // Each captured event in the stack may have a failure_target field.
+                    let mut target_counts: HashMap<String, u32> = HashMap::new();
+                    for entry in &m.stack {
+                        if let Some(target) = entry.event.get_str("failure_target") {
+                            if !target.is_empty() {
+                                *target_counts.entry(target.to_string()).or_insert(0) += 1;
+                            }
+                        }
+                    }
+
+                    // Also check the current event's metadata
+                    let current_target = event
+                        .metadata
+                        .get("failure_target")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    // Emit a detection for each target that exceeds the threshold
+                    for (target, count) in &target_counts {
+                        if *count >= min_failures {
+                            detections.push(Detection {
+                                pattern_name: "targeted_failure".into(),
+                                severity: DetectionSeverity::Warning,
+                                action: DetectionAction::Alert,
+                                message: format!(
+                                    "Repeated failure on target '{}': {} failures in window (Kleene+ match)",
+                                    target, count
+                                ),
+                                details: HashMap::from([
+                                    ("failure_target".into(), serde_json::json!(target)),
+                                    ("failure_count".into(), serde_json::json!(count)),
+                                    ("total_failures".into(), serde_json::json!(m.stack.len())),
+                                ]),
+                                timestamp: event.timestamp,
+                            });
+                        }
+                    }
+
+                    // If no targets had metadata but we still have enough failures,
+                    // emit a generic detection so the adapter can still correlate
+                    if target_counts.is_empty() && m.stack.len() as u32 >= min_failures {
+                        let generic_target = if !current_target.is_empty() {
+                            current_target.to_string()
+                        } else {
+                            // Fall back to error message from the current event
+                            match &event.event_type {
+                                crate::event::AgentEventType::ToolResult { error: Some(e), .. } => {
+                                    e.clone()
+                                }
+                                _ => "unknown".to_string(),
+                            }
+                        };
+                        detections.push(Detection {
+                            pattern_name: "targeted_failure".into(),
+                            severity: DetectionSeverity::Warning,
+                            action: DetectionAction::Alert,
+                            message: format!(
+                                "Repeated failure on target '{}': {} failures in window",
+                                generic_target,
+                                m.stack.len()
+                            ),
+                            details: HashMap::from([
+                                ("failure_target".into(), serde_json::json!(generic_target)),
+                                ("failure_count".into(), serde_json::json!(m.stack.len())),
+                            ]),
+                            timestamp: event.timestamp,
+                        });
+                    }
+                }
+                detections
+            },
+        )
+    }
+
     /// Circular Reasoning: SEQ(ToolCall as a, ToolCall{name!=a.name} as b,
     ///                         ToolCall{name==a.name}, ToolCall{name==b.name})
     ///
@@ -797,6 +907,65 @@ mod tests {
             "Should detect CompactionSpiral from Custom Compaction events"
         );
         assert_eq!(dets[0].pattern_name, "CompactionSpiral");
+    }
+
+    fn tool_error_with_target(ts: u64, name: &str, target: &str) -> AgentEvent {
+        let mut event = AgentEvent::at(
+            ts,
+            AgentEventType::ToolResult {
+                name: name.into(),
+                success: false,
+                error: Some(format!("FAIL {}", target)),
+            },
+        );
+        event
+            .metadata
+            .insert("failure_target".into(), serde_json::json!(target));
+        event
+    }
+
+    #[test]
+    fn sase_targeted_failure_basic() {
+        let mut det = SaseDetector::targeted_failure(&super::super::TargetedFailureConfig {
+            min_failures: 2,
+            window_seconds: 60,
+        });
+
+        let d1 = det.process(&tool_error_with_target(1000, "bash", "tests/test_auth.py::test_login"));
+        assert!(d1.is_empty(), "Should not detect on first failure");
+
+        let d2 = det.process(&tool_error_with_target(2000, "bash", "tests/test_auth.py::test_login"));
+        assert!(
+            !d2.is_empty(),
+            "Should detect targeted failure after 2 failures on same target"
+        );
+        assert_eq!(d2[0].pattern_name, "targeted_failure");
+        assert_eq!(
+            d2[0].details.get("failure_target").and_then(|v| v.as_str()),
+            Some("tests/test_auth.py::test_login")
+        );
+    }
+
+    #[test]
+    fn sase_targeted_failure_different_targets_no_trigger() {
+        let mut det = SaseDetector::targeted_failure(&super::super::TargetedFailureConfig {
+            min_failures: 2,
+            window_seconds: 60,
+        });
+
+        det.process(&tool_error_with_target(1000, "bash", "test_a"));
+        let d2 = det.process(&tool_error_with_target(2000, "bash", "test_b"));
+        // The SASE engine will still match 2 ToolResult{success=false} events,
+        // but the post-match handler groups by target — neither target has 2 failures.
+        // However, the Kleene+ match gives us all events in stack, so we need to check
+        // that no target individually reaches the threshold.
+        let targeted = d2
+            .iter()
+            .any(|d| d.details.get("failure_count").and_then(|v| v.as_u64()) >= Some(2));
+        assert!(
+            !targeted,
+            "Different targets should not individually reach threshold"
+        );
     }
 
     #[test]

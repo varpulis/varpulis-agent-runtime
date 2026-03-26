@@ -2,6 +2,7 @@ import type { AgentEvent, Detection } from "../types.js";
 import type { VarpulisAgentRuntime } from "../runtime.js";
 import type { DetectionHistory } from "../history.js";
 import type { LearnProposal } from "../learn/rules.js";
+import type { ConvergentFailureTracker, StaleGuardrailProposal } from "../convergent.js";
 import { evaluate } from "../learn/rules.js";
 import { hashParams } from "../hash.js";
 
@@ -66,12 +67,31 @@ export interface ClaudeCodeAdapterConfig {
   sessionId?: string;
   /** Minimum distinct sessions before Learn tier fires. Default: 3. */
   learnThreshold?: number;
+  /** Cross-session convergent failure tracker. */
+  convergentTracker?: ConvergentFailureTracker;
+  /** Regex patterns to extract failure targets from error output. */
+  failureTargetPatterns?: RegExp[];
 }
 
 type DetectionCallback = (detection: Detection) => void;
 type IntentStallCallback = (detection: Detection, stallCount: number) => void;
 type CompactionSpiralCallback = (detection: Detection, compactionCount: number) => void;
 type LearnCallback = (proposal: LearnProposal, newContent: string) => void;
+type StaleGuardrailCallback = (proposal: StaleGuardrailProposal) => void;
+
+/** Default regex patterns for extracting failure targets from error output. */
+const DEFAULT_FAILURE_TARGET_PATTERNS: RegExp[] = [
+  // pytest: FAILED tests/test_auth.py::test_login
+  /FAIL(?:ED)?\s+([\w./:-]+(?:::[\w]+)?)/,
+  // jest: FAIL src/__tests__/auth.test.ts
+  /FAIL\s+([\w./_-]+\.(?:test|spec)\.\w+)/,
+  // cargo test: test tests::test_auth ... FAILED
+  /test\s+([\w:]+)\s+\.\.\.\s+FAILED/,
+  // generic assertion: AssertionError in tests/test_auth.py
+  /(?:Error|Exception|FAILED)\s+(?:in\s+)?([\w./:-]+\.(?:py|js|ts|rs|go|java)(?:::[\w]+)?)/,
+  // File path with line number: /path/to/test.py:42
+  /([\w./:-]+\.(?:py|js|ts|rs|go|java):\d+)/,
+];
 
 export class ClaudeCodeAdapter {
   private runtime: VarpulisAgentRuntime;
@@ -88,11 +108,14 @@ export class ClaudeCodeAdapter {
   private sessionId: string;
   private learnThreshold: number;
   private claudeMdContent: string | null = null;
+  private convergentTracker: ConvergentFailureTracker | null;
+  private failureTargetPatterns: RegExp[];
 
   private intentStallListeners: IntentStallCallback[] = [];
   private compactionSpiralListeners: CompactionSpiralCallback[] = [];
   private violationListeners: DetectionCallback[] = [];
   private learnListeners: LearnCallback[] = [];
+  private staleGuardrailListeners: StaleGuardrailCallback[] = [];
 
   constructor(runtime: VarpulisAgentRuntime, config?: ClaudeCodeAdapterConfig) {
     this.runtime = runtime;
@@ -103,6 +126,8 @@ export class ClaudeCodeAdapter {
     this.history = config?.history ?? null;
     this.sessionId = config?.sessionId ?? crypto.randomUUID?.() ?? `sess_${Date.now()}`;
     this.learnThreshold = config?.learnThreshold ?? 3;
+    this.convergentTracker = config?.convergentTracker ?? null;
+    this.failureTargetPatterns = config?.failureTargetPatterns ?? DEFAULT_FAILURE_TARGET_PATTERNS;
 
     // Load all Claude Code VPL patterns into the CEP engine
     runtime.addPatternsFromVpl(ALL_VPL_PATTERNS);
@@ -181,6 +206,58 @@ export class ClaudeCodeAdapter {
     };
 
     return this.runtime.observe(agentEvent);
+  }
+
+  /**
+   * Observe a tool result event, enriching with failure target metadata
+   * for convergent failure detection.
+   *
+   * Call this for PostToolUse events. On failure, extracts the failure target
+   * from error output using configurable regex patterns.
+   */
+  observeToolResult(event: {
+    timestamp: number;
+    name: string;
+    success: boolean;
+    error?: string;
+    rawResponse?: unknown;
+  }): Detection[] {
+    // Extract failure target from error output
+    let failureTarget: string | undefined;
+    if (!event.success && event.error) {
+      failureTarget = this.extractFailureTarget(event.error);
+    }
+
+    const agentEvent: AgentEvent = {
+      timestamp: event.timestamp,
+      event_type: {
+        type: "ToolResult",
+        name: event.name,
+        success: event.success,
+        error: event.error,
+      },
+      metadata: {
+        ...(failureTarget && { failure_target: failureTarget }),
+        ...(event.error && { error_preview: event.error.slice(0, 500) }),
+      },
+    };
+
+    return this.runtime.observe(agentEvent);
+  }
+
+  /**
+   * Register a callback for stale guardrail proposals (convergent failure detection).
+   *
+   * When N independent sessions fail on the same target, the convergent tracker
+   * generates a proposal. The caller decides whether to write it to disk.
+   * Returns an unsubscribe function.
+   */
+  onStaleGuardrail(callback: StaleGuardrailCallback): () => void {
+    this.staleGuardrailListeners.push(callback);
+    return () => {
+      const idx = this.staleGuardrailListeners.indexOf(callback);
+      if (idx !== -1) this.staleGuardrailListeners.splice(idx, 1);
+    };
   }
 
   /**
@@ -318,10 +395,33 @@ export class ClaudeCodeAdapter {
           cb(detection);
         }
         break;
+      case "targeted_failure":
+        this.handleTargetedFailure(detection);
+        break;
     }
 
     // Learn tier evaluation
     this.evaluateLearn(detection);
+  }
+
+  private handleTargetedFailure(detection: Detection): void {
+    if (!this.convergentTracker || this.staleGuardrailListeners.length === 0) return;
+
+    const target = detection.details.failure_target as string | undefined;
+    if (!target) return;
+
+    const errorSummary = detection.message;
+    const proposal = this.convergentTracker.record(
+      target,
+      this.sessionId,
+      errorSummary,
+    );
+
+    if (proposal) {
+      for (const cb of this.staleGuardrailListeners) {
+        cb(proposal);
+      }
+    }
   }
 
   private evaluateLearn(detection: Detection): void {
@@ -361,6 +461,16 @@ export class ClaudeCodeAdapter {
       const branchPattern = new RegExp(`\\bgit\\s+push\\b[^|;&]*\\b${escapeRegExp(branch)}\\b`);
       return branchPattern.test(command);
     });
+  }
+
+  private extractFailureTarget(errorText: string): string | undefined {
+    for (const re of this.failureTargetPatterns) {
+      const match = errorText.match(re);
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+    return undefined;
   }
 
   private touchesProtectedPath(toolName: string, rawInput: unknown): boolean {
